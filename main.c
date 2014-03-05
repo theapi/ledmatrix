@@ -34,6 +34,7 @@ void shiftByte(uint8_t bitOrder, uint8_t val);
 /********************************************************************************
 Global Variables
 ********************************************************************************/
+uint8_t data_shifted; // whether the data has been shifted and just needs to be latched.
 uint8_t cycle_count; // keeps track of the number of times a complete multiplex loop has happened.
 uint8_t anodes = 0b11111110; // low = ON with pnp
 uint8_t current_row; // Which row of the frame is currently being shown via the multiplexing.
@@ -71,7 +72,19 @@ ISR (TIMER0_COMPA_vect)
     if (cycle_tick_count > 0)  --cycle_tick_count;
 
     // Shift out prepared data (red, blue, green, anodes) gets shifted out at this regular interval.
-    shiftData();
+    //shiftData();
+
+    // Data is (should be) ready to be latched
+    // Turn off the leds with OE high
+    PORTC |= (1 << PIN_OE);
+
+    // Latch low to provide an edge
+    PORTB &= ~(1 << PIN_LATCH);
+    // Latch high to move the shifted data into position
+    PORTB |= (1 << PIN_LATCH);
+
+    // Output Enable low to turn on the leds
+    PORTC &= ~(1 << PIN_OE);
 }
 
 
@@ -123,6 +136,12 @@ main (void)
     		time1 = T1;
 
     		//shiftData();
+    	}
+
+    	if (data_shifted == 0) {
+    		// Shift the data ready to be latched in the ISR
+    		shiftData();
+    		data_shifted = 1;
     	}
     }
 }
@@ -179,11 +198,11 @@ void shiftData()
 {
 	// Turn off the leds with OE high
 	// To prevent ghosting, while the data gets shifted.
-    PORTC |= (1 << PIN_OE);
+    //PORTC |= (1 << PIN_OE);
 
     // Latch LOW
     // take the latchPin low so the LEDs don't change sending in bits:
-	PORTB &= ~(1 << PIN_LATCH);
+	//PORTB &= ~(1 << PIN_LATCH);
 
 	// NOT (invert) the bytes so the patterns are 1 == ON 0 == OFF
 
@@ -205,10 +224,10 @@ void shiftData()
 
 
 	// Take the latch pin high, to move the shifted data into position
-	PORTB |= (1 << PIN_LATCH);
+	//PORTB |= (1 << PIN_LATCH);
 
 	// OE low to turn on the leds
-	PORTC &= ~(1 << PIN_OE);
+	//PORTC &= ~(1 << PIN_OE);
 
 	// Get the anodes ready for the next call
 	// At the end of the register add on bits to the start again.
