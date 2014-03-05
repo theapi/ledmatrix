@@ -13,11 +13,12 @@
 #define LSBFIRST 0
 #define MSBFIRST 1
 
-#define COMPARE_REG 50 // OCR0A (1/5 of 1ms = 0.0002ms) - when to interupt (datasheet: 14.9.4)
+#define COMPARE_REG 50 // OCR0A (1/5 of 1ms = 0.0002s) - when to interupt (datasheet: 14.9.4)
 #define MILLIS_TICKS 5  // number of ISR calls before a millisecond is counted
 
 #define T1 2 * MILLIS_TICKS // timeout value (mSec)
-#define TICK_COUNTS 15 // Max number of ISR calls to count
+#define COUNT_CYCLE_TICK 8 // number of ISR calls in a cycle
+#define COUNT_CYCLE 16 // number of cycles needed for 4bit bit angle modulation (0.0256s per cycle = 39hz ish)
 
 /********************************************************************************
 Function Prototypes
@@ -33,6 +34,7 @@ void shiftByte(uint8_t bitOrder, uint8_t val);
 /********************************************************************************
 Global Variables
 ********************************************************************************/
+uint8_t cycle_count; // keeps track of the number of times a complete multiplex loop has happened.
 uint8_t anodes = 0b11111110; // low = ON with pnp
 uint8_t current_row; // Which row of the frame is currently being shown via the multiplexing.
 uint8_t current_frame[8]; // The current frame being displayed
@@ -46,7 +48,7 @@ uint8_t font[2][8] = {
   {0x00,0x82,0xfe,0xfe,0x82,0x00,0x00,0x00}, // I
 };
 
-volatile uint8_t tick_count;
+volatile uint8_t cycle_tick_count;
 volatile unsigned int time1;
 volatile unsigned int frame_time;
 
@@ -66,7 +68,7 @@ ISR (TIMER0_COMPA_vect)
 	// Decrement the time if not already zero
     if (time1 > 0)  --time1;
     if (frame_time > 0)  --frame_time;
-    if (tick_count > 0)  --tick_count;
+    if (cycle_tick_count > 0)  --cycle_tick_count;
 
     // Shift out prepared data (red, blue, green, anodes) gets shifted out at this regular interval.
     shiftData();
@@ -105,8 +107,15 @@ main (void)
 			setFrame(font[current_letter]);
     	}
 
-    	if (tick_count == 0) {
-    		tick_count = TICK_COUNTS;
+    	if (cycle_tick_count == 0) {
+    		cycle_tick_count = COUNT_CYCLE_TICK;
+    		// decrement the cycle count as one cycle has completed
+    		if (cycle_count > 0) {
+    			--cycle_count;
+    		} else {
+    			// reset the cycle counter
+    			cycle_count = COUNT_CYCLE;
+    		}
     	}
 
     	if (time1 == 0) {
@@ -134,7 +143,7 @@ void initialize(void)
 	// Compare register - when to interupt (datasheet: 14.9.4)
 	// OCR0A = 249; // set the compare reg to 250 time ticks = 1ms
 	//OCR0A = 124; // 0.5 ms
-	//OCR0A = 50; // 1/5 of 1ms = 0.0002ms
+	//OCR0A = 50; // 1/5 of 1ms = 0.0002s
 	OCR0A = COMPARE_REG;
 
     // Timer mode (datasheet: 14.9.1)
@@ -148,7 +157,8 @@ void initialize(void)
 	// Timer initialization
     time1 = T1;
     frame_time = current_frame_duration;
-    tick_count = TICK_COUNTS;
+    cycle_tick_count = COUNT_CYCLE_TICK;
+    cycle_count = COUNT_CYCLE;
 
 	// crank up the ISRs
 	sei();
@@ -175,19 +185,21 @@ void shiftData()
     // take the latchPin low so the LEDs don't change sending in bits:
 	PORTB &= ~(1 << PIN_LATCH);
 
-	// NOT the bytes so the patterns are 1 == ON 0 == OFF
-	//if (tick_count > 12) {
+	// NOT (invert) the bytes so the patterns are 1 == ON 0 == OFF
+
+	// pretend bit angle modulation - on for half the full number of 16 cycles
+	if (cycle_count > 8) {
 	    shiftByte(MSBFIRST, ~current_frame[current_row]);
-	//} else {
-	//	shiftByte(MSBFIRST, ~0);
-	//}
+	} else {
+		shiftByte(MSBFIRST, ~0);
+	}
 	shiftByte(MSBFIRST, ~current_frame[current_row]);
 	// YEP, the hardware I built needs the green to be least significate bit first :(
-	//if (tick_count > 8) {
+	if (cycle_count > 8) {
 	   shiftByte(LSBFIRST, ~current_frame[current_row]);
-    //} else {
-	//	shiftByte(MSBFIRST, ~0);
-	//}
+    } else {
+		shiftByte(MSBFIRST, ~0);
+	}
 
 	shiftByte(MSBFIRST, anodes);
 
