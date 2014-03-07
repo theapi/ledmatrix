@@ -34,6 +34,7 @@ void ledsDisable();
 void ledsEnable();
 void shiftData();
 void shiftByte(uint8_t bitOrder, uint8_t val);
+uint8_t bitReverse(uint8_t x);
 
 
 
@@ -204,22 +205,59 @@ Functions
 
 /**
  * Make least significant bit highest etc.
+ *
+ * 11001100 -> 00110011
  */
-uint8_t flipByte(uint8_t byte)
+uint8_t bitReverse(uint8_t x)
 {
-	return byte;
+	/*
 	uint8_t i;
-	uint8_t flipped = byte;
+	uint8_t reversed = 0;
 
 	for (i = 0; i < 8; i++)  {
-		if (byte & (1 << i)) {
-			flipped |= (1 << i); // 0
-		} else {
-			flipped &= ~(1 << i); // 1
-		}
+		reversed >>= 1;
+		reversed |= (byte & (1 << 7));
+		byte <<= 1;
 	}
 
-	return flipped;
+	return reversed;
+	*/
+
+	/*
+
+    The following is faster than a loop, taken from from USI_UART.c AVR307.
+
+	So I can see the bitwise operators in action:
+
+	For x = 11001100...
+
+	x = ((x >> 1) & 0x55) | ((x << 1) & 0xaa);
+	x = ((x >> 1) & 01010101) | ((x << 1) & 10101010);
+	x = (01100110 & 01010101) | (10011000 & 10101010);
+    x = 01000100 | 10001000;
+    x = 11001100;
+
+
+	x = ((x >> 2) & 0x33) | ((x << 2) & 0xcc);
+	x = ((x >> 2) & 00110011) | ((x << 2) & 11001100);
+	x = (00110011 & 00110011) | (00110000 & 11001100);
+    x = 00110011 | 00000000;
+    x = 00110011;
+
+
+    x = ((x >> 4) & 0x0f) | ((x << 4) & 0xf0);
+	x = ((x >> 4) & 00001111) | ((x << 4) & 11110000);
+	x = (00000011 & 00001111) | (00110000 & 11110000);
+    x = 00000011 | 00110000;
+    x = 00110011;
+
+	*/
+
+	// from USI_UART.c AVR307
+    x = ((x >> 1) & 0x55) | ((x << 1) & 0xaa);
+    x = ((x >> 2) & 0x33) | ((x << 2) & 0xcc);
+    x = ((x >> 4) & 0x0f) | ((x << 4) & 0xf0);
+    return x;
 }
 
 /**
@@ -262,23 +300,25 @@ void ledsDisable()
  */
 void shiftData()
 {
-	// NOT (invert) the bytes so the patterns are 1 == ON 0 == OFF
+	// NOT (invert) the bytes so the patterns are 1 == ON 0 == OFF (common anode)
+	// And temporarily reverse the byte as my display is currently upside down.
+	uint8_t byte = ~bitReverse(current_frame[current_row]);
 
 	// RED
 	if (cycle_count > 14) {
-	shiftByte(MSBFIRST, ~flipByte(current_frame[current_row]));
+	shiftByte(MSBFIRST, byte);
 	} else {
 		shiftByte(MSBFIRST, ~0);
 	}
 	// BLUE
 	if (cycle_count > 8) {
-	shiftByte(MSBFIRST, ~flipByte(current_frame[current_row]));
+	shiftByte(MSBFIRST, byte);
 	} else {
 		shiftByte(MSBFIRST, ~0);
 	}
 	// GREEN
 	// YEP, the hardware I built needs the green to be least significate bit first :(
-	shiftByte(LSBFIRST, ~flipByte(current_frame[current_row]));
+	shiftByte(LSBFIRST, byte);
 
 	// ANODES
 	shiftByte(MSBFIRST, anodes[current_row]);
