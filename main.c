@@ -32,8 +32,8 @@ void latchLow();
 void latchHigh();
 void ledsDisable();
 void ledsEnable();
-void shiftData();
-void shiftByte(uint8_t bitOrder, uint8_t val);
+void sendLine();
+void sendByte(uint8_t bitOrder, uint8_t val);
 uint8_t bitReverse(uint8_t x);
 
 
@@ -100,7 +100,7 @@ uint8_t font[26][8] = {
 volatile uint8_t cycle_tick_count;
 volatile unsigned int time1;
 volatile unsigned int frame_time;
-volatile uint8_t data_shifted; // whether the data has been shifted and just needs to be latched.
+volatile uint8_t data_sent; // whether the data has been sent and just needs to be latched.
 
 /********************************************************************************
 Interupt Routines
@@ -115,8 +115,8 @@ ISR (TIMER0_COMPA_vect)
 	ledsDisable();
     latchLow();
     latchHigh();
-    // Flag that the data has been latched & enabled.
-    data_shifted = 0;
+    // Reset the flag so new data can now be sent.
+    data_sent = 0;
 
 	// Decrement the time if not already zero
     if (time1 > 0)  --time1;
@@ -155,7 +155,7 @@ main (void)
 
 	ledsEnable(); // leds on
 
-	data_shifted = 0;
+	data_sent = 0;
 
 	// main loop
     while(1) {
@@ -188,11 +188,11 @@ main (void)
     		time1 = T1;
     	}
 
-    	if (!data_shifted) {
-    		// Shift the data ready to be latched in the ISR
-			shiftData();
+    	if (!data_sent) {
+    		// Send the next line ready to be latched in the ISR
+    		sendLine();
 			// Flag that the data is ready to be latched in the ISR.
-    		data_shifted = 1;
+    		data_sent = 1;
     	}
 
     }
@@ -296,9 +296,9 @@ void ledsDisable()
 }
 
 /**
- * Shift out the prepared data.
+ * Send out the next line of prepared data.
  */
-void shiftData()
+void sendLine()
 {
 	// NOT (invert) the bytes so the patterns are 1 == ON 0 == OFF (common anode)
 	// And temporarily reverse the byte as my display is currently upside down.
@@ -306,22 +306,22 @@ void shiftData()
 
 	// RED
 	if (cycle_count > 14) {
-	shiftByte(MSBFIRST, byte);
+		sendByte(MSBFIRST, byte);
 	} else {
-		shiftByte(MSBFIRST, ~0);
+		sendByte(MSBFIRST, ~0);
 	}
 	// BLUE
 	if (cycle_count > 8) {
-	shiftByte(MSBFIRST, byte);
+		sendByte(MSBFIRST, byte);
 	} else {
-		shiftByte(MSBFIRST, ~0);
+		sendByte(MSBFIRST, ~0);
 	}
 	// GREEN
 	// YEP, the hardware I built needs the green to be least significate bit first :(
-	shiftByte(LSBFIRST, byte);
+	sendByte(LSBFIRST, byte);
 
 	// ANODES
-	shiftByte(MSBFIRST, anodes[current_row]);
+	sendByte(MSBFIRST, anodes[current_row]);
 
 	++current_row;
 	if (current_row > 7) {
@@ -329,7 +329,7 @@ void shiftData()
 	}
 }
 
-void shiftByte(uint8_t bitOrder, uint8_t val)
+void sendByte(uint8_t bitOrder, uint8_t val)
 {
 	uint8_t i;
 	uint8_t bit;
