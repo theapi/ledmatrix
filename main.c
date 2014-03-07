@@ -202,7 +202,25 @@ main (void)
 Functions
 ********************************************************************************/
 
+/**
+ * Make least significant bit highest etc.
+ */
+uint8_t flipByte(uint8_t byte)
+{
+	return byte;
+	uint8_t i;
+	uint8_t flipped = byte;
 
+	for (i = 0; i < 8; i++)  {
+		if (byte & (1 << i)) {
+			flipped |= (1 << i); // 0
+		} else {
+			flipped &= ~(1 << i); // 1
+		}
+	}
+
+	return flipped;
+}
 
 /**
  * Set the latch low.
@@ -248,19 +266,19 @@ void shiftData()
 
 	// RED
 	if (cycle_count > 14) {
-	shiftByte(MSBFIRST, ~current_frame[current_row]);
+	shiftByte(MSBFIRST, ~flipByte(current_frame[current_row]));
 	} else {
 		shiftByte(MSBFIRST, ~0);
 	}
 	// BLUE
 	if (cycle_count > 8) {
-	shiftByte(MSBFIRST, ~current_frame[current_row]);
+	shiftByte(MSBFIRST, ~flipByte(current_frame[current_row]));
 	} else {
 		shiftByte(MSBFIRST, ~0);
 	}
 	// GREEN
 	// YEP, the hardware I built needs the green to be least significate bit first :(
-	shiftByte(LSBFIRST, ~current_frame[current_row]);
+	shiftByte(LSBFIRST, ~flipByte(current_frame[current_row]));
 
 	// ANODES
 	shiftByte(MSBFIRST, anodes[current_row]);
