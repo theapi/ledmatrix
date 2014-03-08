@@ -15,12 +15,12 @@
 
 // 32 * 0.000004 = 0.000128 so ISR gets called every 128us
 // 32 * 0.000004 * 8 = 0.001024 = about 1khz for whole matrix (NB zero based so register one less)
-#define COMPARE_REG 64 // OCR0A when to interupt (datasheet: 14.9.4)
+#define COMPARE_REG 63 // OCR0A when to interupt (datasheet: 14.9.4)
 #define MILLIS_TICKS 4  // number of ISR calls before a millisecond is counted (ish)
 
 #define T1 1 * MILLIS_TICKS // timeout value (mSec)
 #define COUNT_CYCLE_TICK 8 // number of ISR calls in a cycle
-#define COUNT_CYCLE 16 // number of cycles needed brightness
+#define COUNT_CYCLE 8 // number of cycles needed brightness
 
 /********************************************************************************
 Function Prototypes
@@ -31,6 +31,8 @@ void setFrame(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
 void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
 void frameBufferFlipV(void);
 void frameBufferFlipH(void);
+void frameFlipH(void);
+void frameFlipV(void);
 void latchLow(void);
 void latchHigh(void);
 void ledsDisable(void);
@@ -187,6 +189,11 @@ main (void)
 
 			setFrame(font[current_letter], font[current_letter], font[current_letter]);
 
+			// The font is upside down so fix that on the fly.
+    		// This takes slightly too much time for an OCR0A of 31 :(
+    		// @todo fix the font
+			frameFlipH();
+			frameFlipV();
     	}
 
     	if (cycle_tick_count == 0) {
@@ -205,8 +212,8 @@ main (void)
     		// The font is upside down so fix that on the fly.
     		// This takes too much time for an OCR0A of 31 :(
     		// @todo fix the font
-    		frameBufferFlipH();
-    		frameBufferFlipV();
+    		//frameBufferFlipH();
+    		//frameBufferFlipV();
     	}
 
 
@@ -232,38 +239,52 @@ Functions
 ********************************************************************************/
 
 /**
+ * Flip the frame  on the horizontal axis.
+ */
+void frameFlipH(void)
+{
+	uint8_t i;
+
+	for (i = 0; i < 3; i++) {
+		swap(&current_frame[i][0], &current_frame[i][7]);
+		swap(&current_frame[i][1], &current_frame[i][6]);
+		swap(&current_frame[i][2], &current_frame[i][5]);
+		swap(&current_frame[i][3], &current_frame[i][4]);
+	}
+
+}
+
+/**
+ * Flip the frame  on the v axis.
+ */
+void frameFlipV(void)
+{
+	uint8_t i;
+	for (i = 0; i < 8; i++) {
+		// red
+		current_frame[0][i] = bitReverse(current_frame[0][i]);
+        // green
+		current_frame[1][i] = bitReverse(current_frame[1][i]);
+		// blue
+		current_frame[2][i] = bitReverse(current_frame[2][i]);
+	}
+
+}
+
+/**
  * Flip the frame buffer on the horizontal axis.
  */
 void frameBufferFlipH(void)
 {
 	uint8_t i;
-    uint8_t y;
-	uint8_t x[3][8];
-	uint8_t byte;
 
 	for (i = 0; i < 3; i++) {
-	swap(&framebuffer[i][0], &framebuffer[i][7]);
-	swap(&framebuffer[i][1], &framebuffer[i][6]);
-	swap(&framebuffer[i][2], &framebuffer[i][5]);
-	swap(&framebuffer[i][3], &framebuffer[i][4]);
-	}
-	/*
-	for (i = 0; i < 8; i++) {
-		for (y = 7; y >= 0; y--) {
-
-			x[0][y] = framebuffer[0][i];
-			x[1][y] = framebuffer[1][i];
-			x[2][y] = framebuffer[2][i];
-		}
+		swap(&framebuffer[i][0], &framebuffer[i][7]);
+		swap(&framebuffer[i][1], &framebuffer[i][6]);
+		swap(&framebuffer[i][2], &framebuffer[i][5]);
+		swap(&framebuffer[i][3], &framebuffer[i][4]);
 	}
 
-
-	for (i = 0; i < 8; i++) {
-		framebuffer[0][i] = x[0][i];
-		framebuffer[1][i] = x[1][i];
-		framebuffer[2][i] = x[2][i];
-	}
-*/
 }
 
 void swap(uint8_t *px, uint8_t *py)
