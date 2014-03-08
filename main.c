@@ -26,13 +26,15 @@
 Function Prototypes
 ********************************************************************************/
 
-void initialize(void); //all the usual mcu stuff
-void setFrame(uint8_t pattern[8]);
-void latchLow();
-void latchHigh();
-void ledsDisable();
-void ledsEnable();
-void sendLine();
+void timerInit(void); //all the usual mcu stuff
+void setFrame(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
+void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
+uint8_t frameFlipV(uint8_t frame[3][8]);
+void latchLow(void);
+void latchHigh(void);
+void ledsDisable(void);
+void ledsEnable(void);
+void sendLine(uint8_t red, uint8_t blue, uint8_t green);
 void sendByte(uint8_t bitOrder, uint8_t val);
 uint8_t bitReverse(uint8_t x);
 
@@ -44,7 +46,8 @@ Global Variables
 
 uint8_t cycle_count; // keeps track of the number of times a complete multiplex loop has happened.
 uint8_t current_row; // Which row of the frame is currently being shown via the multiplexing.
-uint8_t current_frame[8]; // The current frame being displayed
+uint8_t current_frame[3][8]; // The current frame being displayed
+uint8_t framebuffer[3][8]; // the current cycle of the frame, seperated into RGB (the ones and zeros to send)
 unsigned long current_frame_duration = 2000 * MILLIS_TICKS; // millis to show the current frame.
 unsigned long current_frame_start; // When the current frame was first shown.
 
@@ -67,8 +70,9 @@ uint8_t font[26][8] = {
   //{0xfe,0xfe,0x10,0x10,0xfe,0xfe,0x00,0x00}, // H
   //{0x00,0x82,0xfe,0xfe,0x82,0x00,0x00,0x00}, // I
 
+
 { 0x0C, 0x1E, 0x33, 0x33, 0x3F, 0x33, 0x33, 0x00},   // U+0041 (A)
-    { 0x3F, 0x66, 0x66, 0x3E, 0x66, 0x66, 0x3F, 0x00},   // U+0042 (B)
+{ 0x3F, 0x66, 0x66, 0x3E, 0x66, 0x66, 0x3F, 0x00},   // U+0042 (B)
     { 0x3C, 0x66, 0x03, 0x03, 0x03, 0x66, 0x3C, 0x00},   // U+0043 (C)
     { 0x1F, 0x36, 0x66, 0x66, 0x66, 0x36, 0x1F, 0x00},   // U+0044 (D)
     { 0x7F, 0x46, 0x16, 0x1E, 0x16, 0x46, 0x7F, 0x00},   // U+0045 (E)
@@ -149,16 +153,25 @@ main (void)
 	DDRB = 0xFF; // set all to output
 	PORTB = 0; // all off
 
-	setFrame(font[current_letter]);
+	setFrame(font[current_letter], font[current_letter], font[current_letter]);
+    setFrameBuffer(current_frame[0], current_frame[1], current_frame[2]);
 
-	initialize();
+	timerInit();
 
 	ledsEnable(); // leds on
 
 	data_sent = 0;
 
+	// crank up the ISRs
+	sei();
+
 	// main loop
     while(1) {
+
+    	if (time1 == 0) {
+    		// reset the timer
+    		time1 = T1;
+    	}
 
     	// check for countdown reached 0
     	if (frame_time == 0) {
@@ -169,7 +182,8 @@ main (void)
 			if (current_letter > 25) {
 			  current_letter = 0;
 			}
-			setFrame(font[current_letter]);
+
+			setFrame(font[current_letter], font[current_letter], font[current_letter]);
     	}
 
     	if (cycle_tick_count == 0) {
@@ -181,16 +195,28 @@ main (void)
     			// reset the cycle counter
     			cycle_count = COUNT_CYCLE;
     		}
+
+    		// populate the framebuffer for next cycle; RGB
+    		//uint8_t fb[3] = {current_frame[0], current_frame[1], current_frame[2]};
+
+    		setFrameBuffer(current_frame[0], current_frame[1], current_frame[2]);
+			//setFrameBuffer(frameFlipV(fb));
     	}
 
-    	if (time1 == 0) {
-    		// reset the timer
-    		time1 = T1;
-    	}
 
     	if (!data_sent) {
+
     		// Send the next line ready to be latched in the ISR
-    		sendLine();
+    		//uint8_t byte = bitReverse(current_frame[current_row]);
+    		//uint8_t byte = current_frame[current_row];
+
+    		// RGB
+    		sendLine(
+    			framebuffer[0][current_row], // Red
+				framebuffer[1][current_row], // Green
+				framebuffer[2][current_row]  // Blue
+    		);
+    		//sendLine(current_frame[current_row], current_frame[current_row], current_frame[current_row]);
 			// Flag that the data is ready to be latched in the ISR.
     		data_sent = 1;
     	}
@@ -204,24 +230,72 @@ Functions
 ********************************************************************************/
 
 /**
+ * Flip the frame buffer on the vertical axis.
+ */
+/*
+uint8_t frameFlipV(uint8_t frame[3][8])
+{
+	uint8_t i;
+	uint8_t flipped = frame;
+	for (i = 0; i < 8; i++) {
+		// red
+		flipped[0][i] = bitReverse(frame[0][i]);
+        // green
+		flipped[1][i] = bitReverse(frame[1][i]);
+		// blue
+		flipped[2][i] = bitReverse(frame[2][i]);
+	}
+
+	return flipped;
+}
+*/
+
+/**
+ * Sets the ones & zeros to be sent to the display
+ */
+void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8])
+{
+  uint8_t i;
+  for (i = 0; i < 8; i++) {
+    framebuffer[0][i] = red[i];
+    framebuffer[1][i] = green[i];
+    framebuffer[2][i] = blue[i];
+  }
+}
+
+/**
+ * Stores the data for the frames so the bytes are hex values of the brightness.
+ */
+void setFrame(uint8_t red[8], uint8_t green[8], uint8_t blue[8])
+{
+  uint8_t i;
+  for (i = 0; i < 8; i++) {
+    current_frame[0][i] = red[i];
+    current_frame[1][i] = green[i];
+    current_frame[2][i] = blue[i];
+  }
+}
+
+
+/**
  * Make least significant bit highest etc.
  *
  * 11001100 -> 00110011
  */
 uint8_t bitReverse(uint8_t x)
 {
-	/*
+/*
 	uint8_t i;
 	uint8_t reversed = 0;
 
 	for (i = 0; i < 8; i++)  {
 		reversed >>= 1;
-		reversed |= (byte & (1 << 7));
-		byte <<= 1;
+		reversed |= (x & (1 << 7));
+		x <<= 1;
 	}
 
 	return reversed;
-	*/
+*/
 
 	/*
 
@@ -263,7 +337,7 @@ uint8_t bitReverse(uint8_t x)
 /**
  * Set the latch low.
  */
-void latchLow()
+void latchLow(void)
 {
 	PORTB &= ~(1 << PIN_LATCH);
 }
@@ -271,7 +345,7 @@ void latchLow()
 /**
  * Take the latch pin high, to move the shifted data into position
  */
-void latchHigh()
+void latchHigh(void)
 {
 	PORTB |= (1 << PIN_LATCH);
 }
@@ -279,7 +353,7 @@ void latchHigh()
 /**
  * OE low to turn on the leds.
  */
-void ledsEnable()
+void ledsEnable(void)
 {
 	PORTC &= ~(1 << PIN_OE);
 }
@@ -290,7 +364,7 @@ void ledsEnable()
  * To prevent ghosting/leakage.
  * The process seems to need time to settle (parasitic capcitance?)
  */
-void ledsDisable()
+void ledsDisable(void)
 {
 	PORTC |= (1 << PIN_OE);
 }
@@ -298,27 +372,34 @@ void ledsDisable()
 /**
  * Send out the next line of prepared data.
  */
-void sendLine()
+void sendLine(uint8_t red, uint8_t green, uint8_t blue)
 {
 	// NOT (invert) the bytes so the patterns are 1 == ON 0 == OFF (common anode)
 	// And temporarily reverse the byte as my display is currently upside down.
-	uint8_t byte = ~bitReverse(current_frame[current_row]);
+	//uint8_t byte = ~current_frame[current_row];
 
+	sendByte(MSBFIRST, ~red);
+	sendByte(MSBFIRST, ~blue);
+	// YEP, the hardware I built needs the green to be least significate bit first :(
+	sendByte(LSBFIRST, ~green);
+
+	/*
 	// RED
 	if (cycle_count > 14) {
-		sendByte(MSBFIRST, byte);
+		sendByte(MSBFIRST, ~red);
 	} else {
 		sendByte(MSBFIRST, ~0);
 	}
 	// BLUE
 	if (cycle_count > 8) {
-		sendByte(MSBFIRST, byte);
+		sendByte(MSBFIRST, ~blue);
 	} else {
 		sendByte(MSBFIRST, ~0);
 	}
 	// GREEN
 	// YEP, the hardware I built needs the green to be least significate bit first :(
-	sendByte(LSBFIRST, byte);
+	sendByte(LSBFIRST, ~green);
+*/
 
 	// ANODES
 	sendByte(MSBFIRST, anodes[current_row]);
@@ -355,15 +436,7 @@ void sendByte(uint8_t bitOrder, uint8_t val)
 	}
 }
 
-void setFrame(uint8_t pattern[8])
-{
-  uint8_t i;
-  for (i = 0; i < 8; i++) {
-    current_frame[i] = pattern[i];
-  }
-}
-
-void initialize(void)
+void timerInit(void)
 {
 	// set up timer 0 for 1 mSec ticks (timer 0 is an 8 bit timer)
 
@@ -394,6 +467,5 @@ void initialize(void)
     cycle_tick_count = COUNT_CYCLE_TICK;
     cycle_count = COUNT_CYCLE;
 
-	// crank up the ISRs
-	sei();
+
 }
