@@ -15,8 +15,8 @@
 
 // 32 * 0.000004 = 0.000128 so ISR gets called every 128us
 // 32 * 0.000004 * 8 = 0.001024 = about 1khz for whole matrix (NB zero based so register one less)
-#define COMPARE_REG 31 // OCR0A when to interupt (datasheet: 14.9.4)
-#define MILLIS_TICKS 8  // number of ISR calls before a millisecond is counted (ish)
+#define COMPARE_REG 64 // OCR0A when to interupt (datasheet: 14.9.4)
+#define MILLIS_TICKS 4  // number of ISR calls before a millisecond is counted (ish)
 
 #define T1 1 * MILLIS_TICKS // timeout value (mSec)
 #define COUNT_CYCLE_TICK 8 // number of ISR calls in a cycle
@@ -29,7 +29,8 @@ Function Prototypes
 void timerInit(void); //all the usual mcu stuff
 void setFrame(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
 void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
-uint8_t frameFlipV(uint8_t frame[3][8]);
+void frameBufferFlipV(void);
+void frameBufferFlipH(void);
 void latchLow(void);
 void latchHigh(void);
 void ledsDisable(void);
@@ -37,6 +38,7 @@ void ledsEnable(void);
 void sendLine(uint8_t red, uint8_t blue, uint8_t green);
 void sendByte(uint8_t bitOrder, uint8_t val);
 uint8_t bitReverse(uint8_t x);
+void swap(uint8_t *px, uint8_t *py);
 
 
 
@@ -153,8 +155,8 @@ main (void)
 	DDRB = 0xFF; // set all to output
 	PORTB = 0; // all off
 
-	setFrame(font[current_letter], font[current_letter], font[current_letter]);
-    setFrameBuffer(current_frame[0], current_frame[1], current_frame[2]);
+	//setFrame(font[current_letter], font[current_letter], font[current_letter]);
+    //setFrameBuffer(current_frame[0], current_frame[1], current_frame[2]);
 
 	timerInit();
 
@@ -184,6 +186,7 @@ main (void)
 			}
 
 			setFrame(font[current_letter], font[current_letter], font[current_letter]);
+
     	}
 
     	if (cycle_tick_count == 0) {
@@ -197,28 +200,27 @@ main (void)
     		}
 
     		// populate the framebuffer for next cycle; RGB
-    		//uint8_t fb[3] = {current_frame[0], current_frame[1], current_frame[2]};
-
     		setFrameBuffer(current_frame[0], current_frame[1], current_frame[2]);
-			//setFrameBuffer(frameFlipV(fb));
+
+    		// The font is upside down so fix that on the fly.
+    		// This takes too much time for an OCR0A of 31 :(
+    		// @todo fix the font
+    		frameBufferFlipH();
+    		frameBufferFlipV();
     	}
 
 
     	if (!data_sent) {
-
     		// Send the next line ready to be latched in the ISR
-    		//uint8_t byte = bitReverse(current_frame[current_row]);
-    		//uint8_t byte = current_frame[current_row];
-
-    		// RGB
     		sendLine(
     			framebuffer[0][current_row], // Red
 				framebuffer[1][current_row], // Green
 				framebuffer[2][current_row]  // Blue
     		);
-    		//sendLine(current_frame[current_row], current_frame[current_row], current_frame[current_row]);
+
 			// Flag that the data is ready to be latched in the ISR.
     		data_sent = 1;
+
     	}
 
     }
@@ -230,25 +232,65 @@ Functions
 ********************************************************************************/
 
 /**
- * Flip the frame buffer on the vertical axis.
+ * Flip the frame buffer on the horizontal axis.
  */
-/*
-uint8_t frameFlipV(uint8_t frame[3][8])
+void frameBufferFlipH(void)
 {
 	uint8_t i;
-	uint8_t flipped = frame;
+    uint8_t y;
+	uint8_t x[3][8];
+	uint8_t byte;
+
+	for (i = 0; i < 3; i++) {
+	swap(&framebuffer[i][0], &framebuffer[i][7]);
+	swap(&framebuffer[i][1], &framebuffer[i][6]);
+	swap(&framebuffer[i][2], &framebuffer[i][5]);
+	swap(&framebuffer[i][3], &framebuffer[i][4]);
+	}
+	/*
 	for (i = 0; i < 8; i++) {
-		// red
-		flipped[0][i] = bitReverse(frame[0][i]);
-        // green
-		flipped[1][i] = bitReverse(frame[1][i]);
-		// blue
-		flipped[2][i] = bitReverse(frame[2][i]);
+		for (y = 7; y >= 0; y--) {
+
+			x[0][y] = framebuffer[0][i];
+			x[1][y] = framebuffer[1][i];
+			x[2][y] = framebuffer[2][i];
+		}
 	}
 
-	return flipped;
-}
+
+	for (i = 0; i < 8; i++) {
+		framebuffer[0][i] = x[0][i];
+		framebuffer[1][i] = x[1][i];
+		framebuffer[2][i] = x[2][i];
+	}
 */
+}
+
+void swap(uint8_t *px, uint8_t *py)
+{
+	uint8_t temp;
+
+	temp = *px;
+	*px = *py;
+	*py = temp;
+}
+
+/**
+ * Flip the frame buffer on the vertical axis.
+ */
+void frameBufferFlipV(void)
+{
+	uint8_t i;
+	for (i = 0; i < 8; i++) {
+		// red
+		framebuffer[0][i] = bitReverse(framebuffer[0][i]);
+        // green
+		framebuffer[1][i] = bitReverse(framebuffer[1][i]);
+		// blue
+		framebuffer[2][i] = bitReverse(framebuffer[2][i]);
+	}
+
+}
 
 /**
  * Sets the ones & zeros to be sent to the display
@@ -382,24 +424,6 @@ void sendLine(uint8_t red, uint8_t green, uint8_t blue)
 	sendByte(MSBFIRST, ~blue);
 	// YEP, the hardware I built needs the green to be least significate bit first :(
 	sendByte(LSBFIRST, ~green);
-
-	/*
-	// RED
-	if (cycle_count > 14) {
-		sendByte(MSBFIRST, ~red);
-	} else {
-		sendByte(MSBFIRST, ~0);
-	}
-	// BLUE
-	if (cycle_count > 8) {
-		sendByte(MSBFIRST, ~blue);
-	} else {
-		sendByte(MSBFIRST, ~0);
-	}
-	// GREEN
-	// YEP, the hardware I built needs the green to be least significate bit first :(
-	sendByte(LSBFIRST, ~green);
-*/
 
 	// ANODES
 	sendByte(MSBFIRST, anodes[current_row]);
