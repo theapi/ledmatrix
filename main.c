@@ -54,7 +54,6 @@ uint8_t current_row; // Which row of the frame is currently being shown via the 
 uint8_t current_frame[3][8]; // The current frame being displayed
 uint8_t framebuffer[3][8]; // the current cycle of the frame, seperated into RGB (the ones and zeros to send)
 unsigned long current_frame_duration = 2000 * MILLIS_TICKS; // millis to show the current frame.
-unsigned long current_frame_start; // When the current frame was first shown.
 
 // throwaway variable
 // not used since shift register does not return any data
@@ -80,7 +79,7 @@ uint8_t pattern[1][8] = {
 	  0b01100110,
 	  0b01100110,
 	  0b00000000,
-	  0b10000001,
+	  0b01000010,
 	  0b01000010,
 	  0b00111100,
 	  0b00000000,
@@ -207,11 +206,11 @@ main (void)
 
 			setFrame(font[current_letter], font[current_letter], font[current_letter]);
 
-			// The font is upside down so fix that on the fly.
-    		// This takes too much time for an OCR0A of 31 & bit banging (SPI s ok)
-    		// @todo fix the font
-			//frameFlipH();
-			//frameFlipV();
+			// Currently my matrix is upside down (pins are on the bottom - I have no mount)
+			// so fix the frame on the fly.
+    		// This takes too much time for an OCR0A of 31 & bit banging (SPI is ok)
+			frameFlipH();
+			frameFlipV();
     	}
 
     	if (cycle_tick_count == 0) {
@@ -227,11 +226,10 @@ main (void)
     		// populate the framebuffer for next cycle; RGB
     		setFrameBuffer(current_frame[0], current_frame[1], current_frame[2]);
 
-    		// The font is upside down so fix that on the fly.
-    		// This takes too much time for an OCR0A of 31 & bit banging (SPI s ok)
-    		// @todo fix the font
-    		frameBufferFlipH();
-    		frameBufferFlipV(); // It would be faster to just tell spi to change the bit order.
+    		// Currently my matrix is upside down so fix that on the fly.
+    		// This takes too much time for an OCR0A of 31 & bit banging (SPI is ok)
+    		//frameBufferFlipH();
+    		//frameBufferFlipV(); // It would be faster to just tell spi to change the bit order.
     	}
 
 
