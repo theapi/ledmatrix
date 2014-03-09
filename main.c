@@ -4,9 +4,9 @@
 #include <avr/interrupt.h>
 
 
-#define PIN_DATA   PB3 // DS - 11
+#define PIN_DATA   PB3 // DS - MOSI - 11
 #define PIN_CLOCK  PB5 // SH_CP - SCK - 13
-#define PIN_LATCH  PB4 // ST_CP - 12
+#define PIN_LATCH  PB1 // ST_CP - 9
 #define PIN_OE     PC3 // Output Enable - 17
 
 // From Android.h
@@ -15,18 +15,19 @@
 
 // 32 * 0.000004 = 0.000128 so ISR gets called every 128us
 // 32 * 0.000004 * 8 = 0.001024 = about 1khz for whole matrix (NB zero based so register one less)
-#define COMPARE_REG 63 // OCR0A when to interupt (datasheet: 14.9.4)
-#define MILLIS_TICKS 4  // number of ISR calls before a millisecond is counted (ish)
+#define COMPARE_REG 31 // OCR0A when to interupt (datasheet: 14.9.4)
+#define MILLIS_TICKS 8  // number of ISR calls before a millisecond is counted (ish)
 
 #define T1 1 * MILLIS_TICKS // timeout value (mSec)
 #define COUNT_CYCLE_TICK 8 // number of ISR calls in a cycle
-#define COUNT_CYCLE 8 // number of cycles needed brightness
+#define COUNT_CYCLE 16 // number of cycles needed brightness
 
 /********************************************************************************
 Function Prototypes
 ********************************************************************************/
 
 void timerInit(void); //all the usual mcu stuff
+void initSPI(void);
 void setFrame(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
 void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
 void frameBufferFlipV(void);
@@ -38,7 +39,7 @@ void latchHigh(void);
 void ledsDisable(void);
 void ledsEnable(void);
 void sendLine(uint8_t red, uint8_t blue, uint8_t green);
-void sendByte(uint8_t bitOrder, uint8_t val);
+void sendByte(uint8_t bitOrder, uint8_t byte);
 uint8_t bitReverse(uint8_t x);
 void swap(uint8_t *px, uint8_t *py);
 
@@ -55,6 +56,10 @@ uint8_t framebuffer[3][8]; // the current cycle of the frame, seperated into RGB
 unsigned long current_frame_duration = 2000 * MILLIS_TICKS; // millis to show the current frame.
 unsigned long current_frame_start; // When the current frame was first shown.
 
+// throwaway variable
+// not used since shift register does not return any data
+uint8_t junk;
+
 uint8_t current_letter; // tmp: the index of font to show
 
 // anode low = ON with pnp
@@ -69,12 +74,21 @@ uint8_t anodes[8] = {
   0b01111111,
 };
 
+uint8_t pattern[1][8] = {
+	{
+	  0b00000000,
+	  0b01100110,
+	  0b01100110,
+	  0b00000000,
+	  0b10000001,
+	  0b01000010,
+	  0b00111100,
+	  0b00000000,
+	}
+};
+
 // https://github.com/dhepper/font8x8/blob/master/font8x8_basic.h
 uint8_t font[26][8] = {
-  //{0xfe,0xfe,0x10,0x10,0xfe,0xfe,0x00,0x00}, // H
-  //{0x00,0x82,0xfe,0xfe,0x82,0x00,0x00,0x00}, // I
-
-
 { 0x0C, 0x1E, 0x33, 0x33, 0x3F, 0x33, 0x33, 0x00},   // U+0041 (A)
 { 0x3F, 0x66, 0x66, 0x3E, 0x66, 0x66, 0x3F, 0x00},   // U+0042 (B)
     { 0x3C, 0x66, 0x03, 0x03, 0x03, 0x66, 0x3C, 0x00},   // U+0043 (C)
@@ -122,9 +136,12 @@ ISR (TIMER0_COMPA_vect)
 	// Just latch the data.
 	ledsDisable();
     latchLow();
+
+
     latchHigh();
     // Reset the flag so new data can now be sent.
     data_sent = 0;
+
 
 	// Decrement the time if not already zero
     if (time1 > 0)  --time1;
@@ -157,9 +174,10 @@ main (void)
 	DDRB = 0xFF; // set all to output
 	PORTB = 0; // all off
 
-	//setFrame(font[current_letter], font[current_letter], font[current_letter]);
-    //setFrameBuffer(current_frame[0], current_frame[1], current_frame[2]);
+	setFrame(pattern[0], pattern[0], pattern[0]);
+    setFrameBuffer(pattern[0], pattern[0], pattern[0]);
 
+	initSPI();
 	timerInit();
 
 	ledsEnable(); // leds on
@@ -190,10 +208,10 @@ main (void)
 			setFrame(font[current_letter], font[current_letter], font[current_letter]);
 
 			// The font is upside down so fix that on the fly.
-    		// This takes slightly too much time for an OCR0A of 31 :(
+    		// This takes too much time for an OCR0A of 31 & bit banging (SPI s ok)
     		// @todo fix the font
-			frameFlipH();
-			frameFlipV();
+			//frameFlipH();
+			//frameFlipV();
     	}
 
     	if (cycle_tick_count == 0) {
@@ -210,10 +228,10 @@ main (void)
     		setFrameBuffer(current_frame[0], current_frame[1], current_frame[2]);
 
     		// The font is upside down so fix that on the fly.
-    		// This takes too much time for an OCR0A of 31 :(
+    		// This takes too much time for an OCR0A of 31 & bit banging (SPI s ok)
     		// @todo fix the font
-    		//frameBufferFlipH();
-    		//frameBufferFlipV();
+    		frameBufferFlipH();
+    		frameBufferFlipV(); // It would be faster to just tell spi to change the bit order.
     	}
 
 
@@ -438,9 +456,6 @@ void ledsDisable(void)
 void sendLine(uint8_t red, uint8_t green, uint8_t blue)
 {
 	// NOT (invert) the bytes so the patterns are 1 == ON 0 == OFF (common anode)
-	// And temporarily reverse the byte as my display is currently upside down.
-	//uint8_t byte = ~current_frame[current_row];
-
 	sendByte(MSBFIRST, ~red);
 	sendByte(MSBFIRST, ~blue);
 	// YEP, the hardware I built needs the green to be least significate bit first :(
@@ -455,21 +470,21 @@ void sendLine(uint8_t red, uint8_t green, uint8_t blue)
 	}
 }
 
-void sendByte(uint8_t bitOrder, uint8_t val)
+void sendByte(uint8_t bitOrder, uint8_t byte)
 {
+/*
+    // Bit bang
 	uint8_t i;
 	uint8_t bit;
 
 	for (i = 0; i < 8; i++)  {
 		if (bitOrder == LSBFIRST) {
-			//digitalWrite(dataPin, !!(val & (1 << i)));
 			bit = i;
 		} else {
-			//digitalWrite(dataPin, !!(val & (1 << (7 - i))));
 			bit = 7 - i;
 		}
 
-		if (val & (1 << bit)) {
+		if (byte & (1 << bit)) {
 			PORTB |= (1 << PIN_DATA); // HIGH
 		} else {
 			PORTB &= ~(1 << PIN_DATA); // LOW
@@ -479,6 +494,22 @@ void sendByte(uint8_t bitOrder, uint8_t val)
 		PORTB |= (1 << PIN_CLOCK); // HIGH
 		PORTB &= ~(1 << PIN_CLOCK); // LOW
 	}
+*/
+
+	// SPI
+	if (bitOrder == LSBFIRST) {
+		SPCR |= (1 << DORD); // high
+	} else {
+		SPCR &= ~(1 << DORD); // low
+	}
+
+	// Send the byte
+	SPDR = byte;
+	// Wait for SPI process to finish
+	while(!(SPSR & (1<<SPIF)));
+	// Need to read the result
+	junk = SPDR;
+
 }
 
 void timerInit(void)
@@ -511,6 +542,29 @@ void timerInit(void)
     frame_time = current_frame_duration;
     cycle_tick_count = COUNT_CYCLE_TICK;
     cycle_count = COUNT_CYCLE;
-
-
 }
+
+void initSPI(void)
+{
+	SPCR = (1<<SPE) | (1<<MSTR);	//Start SPI as Master
+	SPSR = (1<<SPI2X); // double speed
+
+
+	/*
+	//set up SPI control register SPCR
+    //bit 7 SPIE=0 no ISR
+    //bit 6 SPE=1 enable spi
+    //bit 5 DORD=0 msb first
+    //bit 4 MSTR=1 spi master
+    //bit 3 CPOL=1 clock polarity
+    //bit 2 CPHA=1 clock phase
+    //bit 1,0 rate sel=00 along with SPSR.0=1 sets clk to f/2 = 8 MHz
+
+	//SPCR = (1<<SPE) | (1<<MSTR) | (1<<CPOL) | (1<<CPHA) ;
+	SPCR = 0b01110000 ;
+
+    //SPSR = (1<<SPI2X) ;
+	SPSR = 1;
+*/
+}
+
