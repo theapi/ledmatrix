@@ -3,6 +3,8 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
+#define BAUD 115200
+#include <util/setbaud.h>
 
 #define PIN_DATA   PB3 // DS - MOSI - 11
 #define PIN_CLOCK  PB5 // SH_CP - SCK - 13
@@ -22,12 +24,17 @@
 #define COUNT_CYCLE_TICK 8 // number of ISR calls in a cycle
 #define COUNT_CYCLE 16 // number of cycles needed brightness
 
+#define RX_BUFFER_LEN 64 // How many bytes the usart receive buffer can hold
+#define TX_BUFFER_LEN 64 // How many bytes the usart send buffer can hold
+
 /********************************************************************************
 Function Prototypes
 ********************************************************************************/
 
 void timerInit(void); //all the usual mcu stuff
 void initSPI(void);
+void USART_Init();
+void USART_Transmit( unsigned char data );
 void setFrame(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
 void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
 void frameBufferFlipV(void);
@@ -73,6 +80,7 @@ uint8_t anodes[8] = {
   0b01111111,
 };
 
+/*
 uint8_t pattern[1][8] = {
 	{
 	  0b00000000,
@@ -85,9 +93,12 @@ uint8_t pattern[1][8] = {
 	  0b00000000,
 	}
 };
+*/
+
 
 // https://github.com/dhepper/font8x8/blob/master/font8x8_basic.h
-uint8_t font[26][8] = {
+uint8_t font[27][8] = {
+{0x00, 0x66, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // :)
 { 0x0C, 0x1E, 0x33, 0x33, 0x3F, 0x33, 0x33, 0x00},   // U+0041 (A)
 { 0x3F, 0x66, 0x66, 0x3E, 0x66, 0x66, 0x3F, 0x00},   // U+0042 (B)
     { 0x3C, 0x66, 0x03, 0x03, 0x03, 0x66, 0x3C, 0x00},   // U+0043 (C)
@@ -122,6 +133,14 @@ volatile uint8_t cycle_tick_count;
 volatile unsigned int time1;
 volatile unsigned int frame_time;
 volatile uint8_t data_sent; // whether the data has been sent and just needs to be latched.
+
+volatile unsigned char rx_buffer[RX_BUFFER_LEN];
+volatile unsigned char rx_head;
+unsigned char rx_tail; // The last buffer byte processed
+
+volatile unsigned char tx_buffer[TX_BUFFER_LEN];
+volatile unsigned char tx_head;
+volatile unsigned char tx_tail;
 
 /********************************************************************************
 Interupt Routines
@@ -159,6 +178,40 @@ ISR (TIMER0_COMPA_vect)
     ledsEnable();
 }
 
+/**
+ * Interrupt when the USART receives a byte.
+ */
+ISR(USART_RX_vect)
+{
+   // Add to the receive buffer
+   rx_buffer[rx_head] = UDR0;
+
+   // Increment the index
+   rx_head++;
+   if (rx_head >= RX_BUFFER_LEN) {
+       rx_head = 0;
+   }
+}
+
+/**
+ * Interrupt when the USART is ready to send more bytes.
+ */
+ISR(USART_UDRE_vect)
+{
+    // If head & tail are not in sync, send the next byte in byte.
+    if (tx_head != tx_tail) {
+        UDR0 = tx_buffer[tx_tail];
+        // Increment the tail index
+        tx_tail++;
+        if (tx_tail >= TX_BUFFER_LEN) {
+            tx_tail = 0;
+        }
+    } else {
+        // Nothing left to send so turn off this interrupt
+        UCSR0B &= ~(1 << UDRIE0);
+    }
+}
+
 
 /********************************************************************************
 Main
@@ -173,10 +226,11 @@ main (void)
 	DDRB = 0xFF; // set all to output
 	PORTB = 0; // all off
 
-	setFrame(pattern[0], pattern[0], pattern[0]);
-    setFrameBuffer(pattern[0], pattern[0], pattern[0]);
+	setFrame(font[0], font[0], font[0]);
+    setFrameBuffer(font[0], font[0], font[0]);
 
 	initSPI();
+	USART_Init();
 	timerInit();
 
 	ledsEnable(); // leds on
@@ -189,6 +243,18 @@ main (void)
 	// main loop
     while(1) {
 
+        // Handle unprocessed received serial data.
+        if (rx_head != rx_tail) {
+
+            current_letter = rx_buffer[rx_tail];
+
+            // Increase the processed index
+            rx_tail++;
+            if (rx_tail >= RX_BUFFER_LEN) {
+                rx_tail = 0;
+            }
+        }
+
     	if (time1 == 0) {
     		// reset the timer
     		time1 = T1;
@@ -198,19 +264,27 @@ main (void)
     	if (frame_time == 0) {
     		// reset the frame timer
     		frame_time = current_frame_duration;
+
+    		/*
     		current_letter++;
 
-			if (current_letter > 25) {
+			if (current_letter > 27) {
 			  current_letter = 0;
 			}
+			*/
 
 			setFrame(font[current_letter], font[current_letter], font[current_letter]);
+
+			USART_Transmit('-');
+			USART_Transmit(current_letter);
+			USART_Transmit('\n');
 
 			// Currently my matrix is upside down (pins are on the bottom - I have no mount)
 			// so fix the frame on the fly.
     		// This takes too much time for an OCR0A of 31 & bit banging (SPI is ok)
 			frameFlipH();
 			frameFlipV();
+
     	}
 
     	if (cycle_tick_count == 0) {
@@ -564,5 +638,48 @@ void initSPI(void)
     //SPSR = (1<<SPI2X) ;
 	SPSR = 1;
 */
+}
+
+void USART_Init(void)
+{
+    //UBRR0H = (UBRR >> 8); // Load upper 8-bits of the baud rate value into the high byte of the UBRR register
+    //UBRR0L = UBRR;        // Load lower 8-bits of the baud rate value into the low byte of the UBRR register
+
+    UBRR0H = UBRRH_VALUE;
+    UBRR0L = UBRRL_VALUE;
+
+    #if USE_2X
+        UCSR0A |= (1 << U2X0);
+    #else
+        UCSR0A &= ~(1 << U2X0);
+    #endif
+
+    // Use 8-bit character sizes & 1 stop bit
+    UCSR0C = (0 << USBS0) | (1 << UCSZ00) | (1 << UCSZ01);
+
+    // Enable receiver, transmitter and interrupt on receive.
+    UCSR0B = (1 << RXCIE0) | (1 << RXEN0) | (1 << TXEN0);
+}
+
+void USART_Transmit( unsigned char data )
+{
+    // Buffer the byte to be sent by the ISR
+    tx_buffer[tx_head] = data;
+    // Increment the head index
+    tx_head++;
+    if (tx_head >= TX_BUFFER_LEN) {
+        tx_head = 0;
+    }
+
+    // Ensure the interrupt to send this is on.
+    UCSR0B |= (1 << UDRIE0);
+
+    /*
+    // Wait for empty transmit buffer
+    while ( !( UCSR0A & (1 << UDRE0)) )
+        ;
+    // Put data into buffer, sends the data
+    UDR0 = data;
+    */
 }
 
