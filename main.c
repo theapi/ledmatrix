@@ -247,6 +247,8 @@ main (void)
         if (rx_head != rx_tail) {
 
             current_letter = rx_buffer[rx_tail];
+            // Make it display now.
+            frame_time = 0;
 
             // Increase the processed index
             rx_tail++;
