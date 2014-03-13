@@ -256,6 +256,7 @@ main (void)
     	if (time1 == 0) {
     		// reset the timer
     		time1 = T1;
+
     	}
 
     	// check for countdown reached 0
@@ -273,9 +274,9 @@ main (void)
 
 			setFrame(font[current_letter], font[current_letter], font[current_letter]);
 
-			USART_Transmit('-');
-			USART_Transmit(current_letter);
-			USART_Transmit('\n');
+			//USART_Transmit('-');
+			//USART_Transmit(current_letter);
+			//USART_Transmit('\n');
 
 			// Currently my matrix is upside down (pins are on the bottom - I have no mount)
 			// so fix the frame on the fly.
@@ -685,9 +686,9 @@ void USART_Transmit( unsigned char data )
  * State machine to handle the incoming serial data.
  *
  * The command is only one byte.
- * (uint8_t rx_cmd):args\n
+ * (uint8_t rx_cmd)args\n
  * eg:
- * p:23\n
+ * f23\n
  */
 void USART_rxProcess(void)
 {
@@ -703,26 +704,23 @@ void USART_rxProcess(void)
         rx_tail = 0;
     }
 
+    USART_Transmit(c);
+
     if (rx_state == RX_COMMAND) {
         // reset the command arguments
         rx_args = 0;
-
-        // Building the command
-        // When the colon is sent, the command is finished and the args start.
-        // Separated by a colon as a kind of sanity check.
-        if (c == ':') {
-            rx_state = RX_ARGS;
-        } else {
-            rx_cmd = c;
-        }
+        // Commands are only one byte.
+        rx_cmd = c;
+        // Now get the arguments.
+        rx_state = RX_ARGS;
     } else {
         // rx_state == RX_ARGS
-        // The arguments for the command
+
+        // Arguments are terminated by new line.
         if (c == '\n') {
             // Newline so execute the command
             // Only one command for now: 'f' is the command for font
             if (rx_cmd == 'f') {
-                // ...for now
                 current_letter = rx_args;
                 // Make it display now.
                 frame_time = 0;
@@ -730,10 +728,21 @@ void USART_rxProcess(void)
 
             rx_state = RX_COMMAND;
         } else {
-            // mmm... how to read multiple characters as a decimal byte.
-            // eg 23 means twenty three not 2 and 3
-            c -= 0x30; // ASCII numbers start at 0x30
-            rx_args += c;
+
+            if (rx_cmd == 'f') {
+                // Only interested in numbers as they make up the index of the array to use.
+                // ASCII hex values 0x30 to 0x30 are decimal 0 to 9
+                if (c > 0x2F && c < 0x3A) {
+                    if (rx_args > 0) {
+                        // Expecting decimal numbers like 24,
+                        // so for each new argument multiply by ten (shift left in decimal).
+                        rx_args *= 10;
+                        rx_args += c - 0x30;
+                    } else {
+                        rx_args = c - 0x30;
+                    }
+                }
+            }
         }
     }
 
