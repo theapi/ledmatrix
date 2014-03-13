@@ -35,6 +35,7 @@ void timerInit(void); //all the usual mcu stuff
 void initSPI(void);
 void USART_Init();
 void USART_Transmit( unsigned char data );
+void USART_rxProcess(void);
 void setFrame(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
 void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
 void frameBufferFlipV(void);
@@ -61,6 +62,12 @@ uint8_t current_row; // Which row of the frame is currently being shown via the 
 uint8_t current_frame[3][8]; // The current frame being displayed
 uint8_t framebuffer[3][8]; // the current cycle of the frame, seperated into RGB (the ones and zeros to send)
 unsigned long current_frame_duration = 2000 * MILLIS_TICKS; // millis to show the current frame.
+
+// States for the usart receive processing.
+enum rx_states {RX_COMMAND, RX_ARGS};
+enum rx_states rx_state = RX_COMMAND;
+uint8_t rx_cmd;  // The command being requested by serial data.
+uint8_t rx_args; // The argument for rx_cmd being requested by serial data.
 
 // throwaway variable
 // not used since shift register does not return any data
@@ -244,18 +251,7 @@ main (void)
     while(1) {
 
         // Handle unprocessed received serial data.
-        if (rx_head != rx_tail) {
-
-            current_letter = rx_buffer[rx_tail];
-            // Make it display now.
-            frame_time = 0;
-
-            // Increase the processed index
-            rx_tail++;
-            if (rx_tail >= RX_BUFFER_LEN) {
-                rx_tail = 0;
-            }
-        }
+        USART_rxProcess();
 
     	if (time1 == 0) {
     		// reset the timer
@@ -683,5 +679,58 @@ void USART_Transmit( unsigned char data )
     // Put data into buffer, sends the data
     UDR0 = data;
     */
+}
+
+/**
+ * State machine to handle the incoming serial data.
+ *
+ * The command is only one byte.
+ * (uint8_t rx_cmd):args\n
+ * eg:
+ * p:23\n
+ */
+void USART_rxProcess(void)
+{
+    if (rx_head == rx_tail) {
+        // Nothing to do.
+        return;
+    }
+
+    uint8_t c = rx_buffer[rx_tail];
+    // Increase the processed index
+    rx_tail++;
+    if (rx_tail >= RX_BUFFER_LEN) {
+        rx_tail = 0;
+    }
+
+    if (rx_state == RX_COMMAND) {
+        // Building the command
+        // When the colon is sent, the command is finished and the args start.
+        // Separated by a colon as a kind of sanity check.
+        if (c == ':') {
+            rx_state = RX_ARGS;
+        } else {
+            rx_cmd = c;
+        }
+    } else {
+        // The arguments for the command
+        if (c == '\n') {
+            // Newline so done, reset
+            rx_state = RX_COMMAND;
+        } else {
+            // mmm... how to read multiple characters as a decimal byte.
+            // eg 23 means twenty three not 2 and 3
+
+            // ...for now
+            current_letter = c;
+        }
+    }
+
+    // 'f' is the command for font
+    if (rx_cmd == 'f') {
+        // Make it display now.
+        frame_time = 0;
+    }
+
 }
 
