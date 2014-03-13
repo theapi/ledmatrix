@@ -704,6 +704,9 @@ void USART_rxProcess(void)
     }
 
     if (rx_state == RX_COMMAND) {
+        // reset the command arguments
+        rx_args = 0;
+
         // Building the command
         // When the colon is sent, the command is finished and the args start.
         // Separated by a colon as a kind of sanity check.
@@ -713,23 +716,25 @@ void USART_rxProcess(void)
             rx_cmd = c;
         }
     } else {
+        // rx_state == RX_ARGS
         // The arguments for the command
         if (c == '\n') {
-            // Newline so done, reset
+            // Newline so execute the command
+            // Only one command for now: 'f' is the command for font
+            if (rx_cmd == 'f') {
+                // ...for now
+                current_letter = rx_args;
+                // Make it display now.
+                frame_time = 0;
+            }
+
             rx_state = RX_COMMAND;
         } else {
             // mmm... how to read multiple characters as a decimal byte.
             // eg 23 means twenty three not 2 and 3
-
-            // ...for now
-            current_letter = c;
+            c -= 0x30; // ASCII numbers start at 0x30
+            rx_args += c;
         }
-    }
-
-    // 'f' is the command for font
-    if (rx_cmd == 'f') {
-        // Make it display now.
-        frame_time = 0;
     }
 
 }
