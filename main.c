@@ -27,6 +27,9 @@
 #define RX_BUFFER_LEN 64 // How many bytes the usart receive buffer can hold
 #define TX_BUFFER_LEN 64 // How many bytes the usart send buffer can hold
 
+#define SOURCE_SIZE_FONT    27 // The number of items in the font source array.
+#define SOURCE_SIZE_PATTERN 3 // The number of items in the pattern source array.
+
 /********************************************************************************
 Function Prototypes
 ********************************************************************************/
@@ -69,11 +72,11 @@ enum rx_states rx_state = RX_COMMAND;
 uint8_t rx_cmd;  // The command being requested by serial data.
 uint8_t rx_args; // The argument for rx_cmd being requested by serial data.
 
-// throwaway variable
-// not used since shift register does not return any data
-uint8_t junk;
 
-uint8_t current_letter; // tmp: the index of font to show
+uint8_t junk; // throwaway variable for shift register SPI return data
+
+uint8_t source_array; // The array that is the source of data.
+uint8_t source_index; // The source array index that is currently being shown.
 
 // anode low = ON with pnp
 uint8_t anodes[8] = {
@@ -94,18 +97,24 @@ uint8_t pattern[1][8] = {
 	  0b01100110,
 	  0b01100110,
 	  0b00000000,
-	  0b01000010,
-	  0b01000010,
+	  0b01111110,
+	  0b01111110,
 	  0b00111100,
 	  0b00000000,
 	}
 };
 */
 
+uint8_t pattern[SOURCE_SIZE_PATTERN][8] = {
+    {0x00, 0x66, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // :)
+    {0x00, 0x00, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // :)
+    {0x00, 0x66, 0x66, 0x00, 0x7E, 0x7E, 0x3C, 0x00}, // :O
+};
+
 
 // https://github.com/dhepper/font8x8/blob/master/font8x8_basic.h
-uint8_t font[27][8] = {
-{0x00, 0x66, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // :)
+uint8_t font[SOURCE_SIZE_FONT][8] = {
+{ 0x3E, 0x63, 0x7B, 0x7B, 0x7B, 0x03, 0x1E, 0x00},   // U+0040 (@)
 { 0x0C, 0x1E, 0x33, 0x33, 0x3F, 0x33, 0x33, 0x00},   // U+0041 (A)
 { 0x3F, 0x66, 0x66, 0x3E, 0x66, 0x66, 0x3F, 0x00},   // U+0042 (B)
     { 0x3C, 0x66, 0x03, 0x03, 0x03, 0x66, 0x3C, 0x00},   // U+0043 (C)
@@ -233,8 +242,8 @@ main (void)
 	DDRB = 0xFF; // set all to output
 	PORTB = 0; // all off
 
-	setFrame(font[0], font[0], font[0]);
-    setFrameBuffer(font[0], font[0], font[0]);
+	setFrame(pattern[0], pattern[0], pattern[0]);
+    setFrameBuffer(pattern[0], pattern[0], pattern[0]);
 
 	initSPI();
 	USART_Init();
@@ -264,15 +273,20 @@ main (void)
     		// reset the frame timer
     		frame_time = current_frame_duration;
 
-    		/*
-    		current_letter++;
+    		//setFrame(font[source_index], font[source_index], font[source_index]);
 
-			if (current_letter > 27) {
-			  current_letter = 0;
-			}
-			*/
-
-			setFrame(font[current_letter], font[current_letter], font[current_letter]);
+    		if (source_array == 'f') {
+    		    if (source_index >= SOURCE_SIZE_FONT) {
+                    source_index = 0;
+                }
+    		    setFrame(font[source_index], font[source_index], font[source_index]);
+    		} else {
+    		    if (source_index >= SOURCE_SIZE_PATTERN) {
+    		        source_index = 0;
+    		    }
+    		    setFrame(pattern[source_index], pattern[source_index], pattern[source_index]);
+    		    source_index++;
+    		}
 
 			//USART_Transmit('-');
 			//USART_Transmit(current_letter);
@@ -527,10 +541,24 @@ void ledsDisable(void)
 void sendLine(uint8_t red, uint8_t green, uint8_t blue)
 {
 	// NOT (invert) the bytes so the patterns are 1 == ON 0 == OFF (common anode)
-	sendByte(MSBFIRST, ~red);
-	sendByte(MSBFIRST, ~blue);
+    if (cycle_count < 4) {
+        sendByte(MSBFIRST, ~red);
+    } else {
+        sendByte(MSBFIRST, ~0);
+    }
+
+    if (cycle_count < 8) {
+        sendByte(MSBFIRST, ~blue);
+    } else {
+        sendByte(MSBFIRST, ~0);
+    }
+
 	// YEP, the hardware I built needs the green to be least significate bit first :(
-	sendByte(LSBFIRST, ~green);
+    if (cycle_count < 12) {
+        sendByte(LSBFIRST, ~green);
+	} else {
+        sendByte(MSBFIRST, ~0);
+    }
 
 	// ANODES
 	sendByte(MSBFIRST, anodes[current_row]);
@@ -720,8 +748,9 @@ void USART_rxProcess(void)
         if (c == '\n') {
             // Newline so execute the command
             // Only one command for now: 'f' is the command for font
-            if (rx_cmd == 'f') {
-                current_letter = rx_args;
+            if (rx_cmd == 'f' || rx_cmd == 'p') {
+                source_array = rx_cmd;
+                source_index = rx_args;
                 // Make it display now.
                 frame_time = 0;
             }
@@ -729,7 +758,7 @@ void USART_rxProcess(void)
             rx_state = RX_COMMAND;
         } else {
 
-            if (rx_cmd == 'f') {
+            if (rx_cmd == 'f' || rx_cmd == 'p') {
                 // Only interested in numbers as they make up the index of the array to use.
                 // ASCII hex values 0x30 to 0x30 are decimal 0 to 9
                 if (c > 0x2F && c < 0x3A) {
