@@ -293,8 +293,8 @@ main (void)
 			// Currently my matrix is upside down (pins are on the bottom - I have no mount)
 			// so fix the frame on the fly.
     		// This takes too much time for an OCR0A of 31 & bit banging (SPI is ok)
-			frameFlipH();
-			frameFlipV();
+			//frameFlipH();
+			//frameFlipV();
 
 			//setFrameBuffer(current_frame[0], current_frame[1], current_frame[2]);
 
@@ -532,23 +532,23 @@ void ledsDisable(void)
 void sendLine(uint8_t red, uint8_t green, uint8_t blue)
 {
 	// NOT (invert) the bytes so the patterns are 1 == ON 0 == OFF (common anode)
-    if (cycle_count < 1) {
+    if (cycle_count < 5) {
         sendByte(MSBFIRST, ~red);
     } else {
         sendByte(MSBFIRST, ~0);
     }
 
-    if (cycle_count < 1) {
+    if (cycle_count < 12) {
         sendByte(MSBFIRST, ~blue);
     } else {
         sendByte(MSBFIRST, ~0);
     }
 
 	// YEP, the hardware I built needs the green to be least significate bit first :(
-    if (cycle_count < 1) {
+    if (cycle_count < 16) {
         sendByte(LSBFIRST, ~green);
 	} else {
-        sendByte(MSBFIRST, ~0);
+        sendByte(LSBFIRST, ~0);
     }
 
 	// ANODES
