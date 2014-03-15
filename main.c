@@ -2,6 +2,7 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/pgmspace.h>
 
 #define BAUD 115200
 #include <util/setbaud.h>
@@ -21,8 +22,7 @@
 #define MILLIS_TICKS 8  // number of ISR calls before a millisecond is counted (ish)
 
 #define T1 1 * MILLIS_TICKS // timeout value (mSec)
-#define COUNT_CYCLE_TICK 8 // number of ISR calls in a cycle
-#define COUNT_CYCLE 16 // number of cycles needed brightness
+#define MAX_CYCLE_COUNT 16 // number of cycles needed brightness (a cycle is lighting each row once)
 
 #define RX_BUFFER_LEN 64 // How many bytes the usart receive buffer can hold
 #define TX_BUFFER_LEN 64 // How many bytes the usart send buffer can hold
@@ -39,7 +39,8 @@ void initSPI(void);
 void USART_Init();
 void USART_Transmit( unsigned char data );
 void USART_rxProcess(void);
-void setFrame(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
+void setFrame(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8]);
+void setFrame_P(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8]);
 void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
 void frameBufferFlipV(void);
 void frameBufferFlipH(void);
@@ -80,14 +81,14 @@ uint8_t source_index; // The source array index that is currently being shown.
 
 // anode low = ON with pnp
 uint8_t anodes[8] = {
-  0b11111110,
-  0b11111101,
-  0b11111011,
-  0b11110111,
-  0b11101111,
-  0b11011111,
-  0b10111111,
   0b01111111,
+  0b10111111,
+  0b11011111,
+  0b11101111,
+  0b11110111,
+  0b11111011,
+  0b11111101,
+  0b11111110,
 };
 
 /*
@@ -105,7 +106,7 @@ uint8_t pattern[1][8] = {
 };
 */
 
-uint8_t pattern[SOURCE_SIZE_PATTERN][8] = {
+const uint8_t pattern[SOURCE_SIZE_PATTERN][8] PROGMEM = {
     {0x00, 0x66, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // :)
     {0x00, 0x00, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // :)
     {0x00, 0x66, 0x66, 0x00, 0x7E, 0x7E, 0x3C, 0x00}, // :O
@@ -113,7 +114,7 @@ uint8_t pattern[SOURCE_SIZE_PATTERN][8] = {
 
 
 // https://github.com/dhepper/font8x8/blob/master/font8x8_basic.h
-uint8_t font[SOURCE_SIZE_FONT][8] = {
+const uint8_t font[SOURCE_SIZE_FONT][8] PROGMEM = {
 { 0x3E, 0x63, 0x7B, 0x7B, 0x7B, 0x03, 0x1E, 0x00},   // U+0040 (@)
 { 0x0C, 0x1E, 0x33, 0x33, 0x3F, 0x33, 0x33, 0x00},   // U+0041 (A)
 { 0x3F, 0x66, 0x66, 0x3E, 0x66, 0x66, 0x3F, 0x00},   // U+0042 (B)
@@ -145,7 +146,7 @@ uint8_t font[SOURCE_SIZE_FONT][8] = {
 
 };
 
-volatile uint8_t cycle_tick_count;
+
 volatile unsigned int time1;
 volatile unsigned int frame_time;
 volatile uint8_t data_sent; // whether the data has been sent and just needs to be latched.
@@ -170,9 +171,8 @@ ISR (TIMER0_COMPA_vect)
 	// Just latch the data.
 	ledsDisable();
     latchLow();
-
-
     latchHigh();
+
     // Reset the flag so new data can now be sent.
     data_sent = 0;
 
@@ -180,7 +180,6 @@ ISR (TIMER0_COMPA_vect)
 	// Decrement the time if not already zero
     if (time1 > 0)  --time1;
     if (frame_time > 0)  --frame_time;
-    if (cycle_tick_count > 0)  --cycle_tick_count;
 
 /*
     // Dumbass delay because time is needed to reduce ghosting.
@@ -242,8 +241,9 @@ main (void)
 	DDRB = 0xFF; // set all to output
 	PORTB = 0; // all off
 
-	setFrame(pattern[0], pattern[0], pattern[0]);
-    setFrameBuffer(pattern[0], pattern[0], pattern[0]);
+	uint8_t frame[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+	setFrame(frame, frame, frame);
+    setFrameBuffer(frame, frame, frame);
 
 	initSPI();
 	USART_Init();
@@ -273,24 +273,22 @@ main (void)
     		// reset the frame timer
     		frame_time = current_frame_duration;
 
-    		//setFrame(font[source_index], font[source_index], font[source_index]);
-
     		if (source_array == 'f') {
     		    if (source_index >= SOURCE_SIZE_FONT) {
                     source_index = 0;
                 }
-    		    setFrame(font[source_index], font[source_index], font[source_index]);
+    		    setFrame_P(font[source_index], font[source_index], font[source_index]);
     		} else {
     		    if (source_index >= SOURCE_SIZE_PATTERN) {
     		        source_index = 0;
     		    }
-    		    setFrame(pattern[source_index], pattern[source_index], pattern[source_index]);
+    		    setFrame_P(pattern[source_index], pattern[source_index], pattern[source_index]);
     		    source_index++;
     		}
 
-			//USART_Transmit('-');
-			//USART_Transmit(current_letter);
-			//USART_Transmit('\n');
+    		// @todo Mmm, not right that the framebuffer needs to be set BEFORE frameFlip()
+    		// must be a pointer/reference problem...
+    		setFrameBuffer(current_frame[0], current_frame[1], current_frame[2]);
 
 			// Currently my matrix is upside down (pins are on the bottom - I have no mount)
 			// so fix the frame on the fly.
@@ -298,27 +296,9 @@ main (void)
 			frameFlipH();
 			frameFlipV();
 
+			//setFrameBuffer(current_frame[0], current_frame[1], current_frame[2]);
+
     	}
-
-    	if (cycle_tick_count == 0) {
-    		cycle_tick_count = COUNT_CYCLE_TICK;
-    		// decrement the cycle count as one cycle has completed
-    		if (cycle_count > 0) {
-    			--cycle_count;
-    		} else {
-    			// reset the cycle counter
-    			cycle_count = COUNT_CYCLE;
-    		}
-
-    		// populate the framebuffer for next cycle; RGB
-    		setFrameBuffer(current_frame[0], current_frame[1], current_frame[2]);
-
-    		// Currently my matrix is upside down so fix that on the fly.
-    		// This takes too much time for an OCR0A of 31 & bit banging (SPI is ok)
-    		//frameBufferFlipH();
-    		//frameBufferFlipV(); // It would be faster to just tell spi to change the bit order.
-    	}
-
 
     	if (!data_sent) {
     		// Send the next line ready to be latched in the ISR
@@ -330,7 +310,6 @@ main (void)
 
 			// Flag that the data is ready to be latched in the ISR.
     		data_sent = 1;
-
     	}
 
     }
@@ -432,7 +411,7 @@ void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8])
 /**
  * Stores the data for the frames so the bytes are hex values of the brightness.
  */
-void setFrame(uint8_t red[8], uint8_t green[8], uint8_t blue[8])
+void setFrame(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8])
 {
   uint8_t i;
   for (i = 0; i < 8; i++) {
@@ -442,6 +421,18 @@ void setFrame(uint8_t red[8], uint8_t green[8], uint8_t blue[8])
   }
 }
 
+/**
+ * Stores the data from PROGMEM for the frames so the bytes are hex values of the brightness.
+ */
+void setFrame_P(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8])
+{
+  uint8_t i;
+  for (i = 0; i < 8; i++) {
+    current_frame[0][i] = pgm_read_byte(red + i);
+    current_frame[1][i] = pgm_read_byte(green + i);
+    current_frame[2][i] = pgm_read_byte(blue + i);
+  }
+}
 
 /**
  * Make least significant bit highest etc.
@@ -541,20 +532,20 @@ void ledsDisable(void)
 void sendLine(uint8_t red, uint8_t green, uint8_t blue)
 {
 	// NOT (invert) the bytes so the patterns are 1 == ON 0 == OFF (common anode)
-    if (cycle_count < 4) {
+    if (cycle_count < 1) {
         sendByte(MSBFIRST, ~red);
     } else {
         sendByte(MSBFIRST, ~0);
     }
 
-    if (cycle_count < 8) {
+    if (cycle_count < 1) {
         sendByte(MSBFIRST, ~blue);
     } else {
         sendByte(MSBFIRST, ~0);
     }
 
 	// YEP, the hardware I built needs the green to be least significate bit first :(
-    if (cycle_count < 12) {
+    if (cycle_count < 1) {
         sendByte(LSBFIRST, ~green);
 	} else {
         sendByte(MSBFIRST, ~0);
@@ -566,6 +557,13 @@ void sendLine(uint8_t red, uint8_t green, uint8_t blue)
 	++current_row;
 	if (current_row > 7) {
 		current_row = 0;
+
+		// One cycle completed.
+		++cycle_count;
+		if (cycle_count >= MAX_CYCLE_COUNT) {
+		    cycle_count = 0;
+		}
+
 	}
 }
 
@@ -639,8 +637,6 @@ void timerInit(void)
 	// Timer initialization
     time1 = T1;
     frame_time = current_frame_duration;
-    cycle_tick_count = COUNT_CYCLE_TICK;
-    cycle_count = COUNT_CYCLE;
 }
 
 void initSPI(void)
