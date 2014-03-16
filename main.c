@@ -28,7 +28,7 @@
 #define TX_BUFFER_LEN 64 // How many bytes the usart send buffer can hold
 
 #define SOURCE_SIZE_FONT    27 // The number of items in the font source array.
-#define SOURCE_SIZE_PATTERN 3 // The number of items in the pattern source array.
+#define SOURCE_SIZE_PATTERN 7 // The number of items in the pattern source array.
 
 /********************************************************************************
 Function Prototypes
@@ -60,7 +60,7 @@ void swap(uint8_t *px, uint8_t *py);
 /********************************************************************************
 Global Variables
 ********************************************************************************/
-
+uint8_t foo;
 uint8_t cycle_count; // keeps track of the number of times a complete multiplex loop has happened.
 uint8_t current_row; // Which row of the frame is currently being shown via the multiplexing.
 uint8_t current_frame[3][8]; // The current frame being displayed
@@ -80,35 +80,30 @@ uint8_t source_array; // The array that is the source of data.
 uint8_t source_index; // The source array index that is currently being shown.
 
 // anode low = ON with pnp
-uint8_t anodes[8] = {
-  0b01111111,
-  0b10111111,
-  0b11011111,
-  0b11101111,
-  0b11110111,
-  0b11111011,
-  0b11111101,
-  0b11111110,
-};
+uint8_t anodes = 0b01111111;
 
 /*
 uint8_t pattern[1][8] = {
 	{
-	  0b00000000,
-	  0b01100110,
-	  0b01100110,
-	  0b00000000,
-	  0b01111110,
-	  0b01111110,
-	  0b00111100,
-	  0b00000000,
+	  0b11111111,
+	  0b10000000,
+	  0b10000000,
+	  0b10000000,
+	  0b10000000,
+	  0b10000000,
+	  0b10000000,
+	  0b10000000,
 	}
 };
 */
 
 const uint8_t pattern[SOURCE_SIZE_PATTERN][8] PROGMEM = {
+    {0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xFF}, // |_
+    {0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xFF, 0xFF}, // |_
+    {0x80, 0x80, 0x80, 0x80, 0x80, 0xFF, 0x80, 0xFF}, // |_
     {0x00, 0x66, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // :)
-    {0x00, 0x00, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // :)
+    {0x00, 0x06, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // ;)
+    {0x00, 0x00, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // |)
     {0x00, 0x66, 0x66, 0x00, 0x7E, 0x7E, 0x3C, 0x00}, // :O
 };
 
@@ -241,9 +236,18 @@ main (void)
 	DDRB = 0xFF; // set all to output
 	PORTB = 0; // all off
 
-	uint8_t frame[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+	uint8_t frame[8] = {
+      0b11111111,
+      0b10000000,
+      0b10000000,
+      0b10000000,
+      0b10000000,
+      0b10000000,
+      0b10000000,
+      0b10000000,
+    };
 	setFrame(frame, frame, frame);
-    setFrameBuffer(frame, frame, frame);
+    //setFrameBuffer(frame, frame, frame);
 
 	initSPI();
 	USART_Init();
@@ -273,11 +277,15 @@ main (void)
     		// reset the frame timer
     		frame_time = current_frame_duration;
 
+
     		if (source_array == 'f') {
     		    if (source_index >= SOURCE_SIZE_FONT) {
                     source_index = 0;
                 }
     		    setFrame_P(font[source_index], font[source_index], font[source_index]);
+    		    // Currently the font is flipped.
+    		    // @todo sort out the font
+    		    frameFlipV();
     		} else {
     		    if (source_index >= SOURCE_SIZE_PATTERN) {
     		        source_index = 0;
@@ -286,26 +294,14 @@ main (void)
     		    source_index++;
     		}
 
-    		// @todo Mmm, not right that the framebuffer needs to be set BEFORE frameFlip()
-    		// must be a pointer/reference problem...
-    		setFrameBuffer(current_frame[0], current_frame[1], current_frame[2]);
-
-			// Currently my matrix is upside down (pins are on the bottom - I have no mount)
-			// so fix the frame on the fly.
-    		// This takes too much time for an OCR0A of 31 & bit banging (SPI is ok)
-			//frameFlipH();
-			//frameFlipV();
-
-			//setFrameBuffer(current_frame[0], current_frame[1], current_frame[2]);
-
     	}
 
     	if (!data_sent) {
     		// Send the next line ready to be latched in the ISR
     		sendLine(
-    			framebuffer[0][current_row], // Red
-				framebuffer[1][current_row], // Green
-				framebuffer[2][current_row]  // Blue
+    			current_frame[0][current_row], // Red
+				current_frame[1][current_row], // Green
+				current_frame[2][current_row]  // Blue
     		);
 
 			// Flag that the data is ready to be latched in the ISR.
@@ -552,7 +548,11 @@ void sendLine(uint8_t red, uint8_t green, uint8_t blue)
     }
 
 	// ANODES
-	sendByte(MSBFIRST, anodes[current_row]);
+    sendByte(MSBFIRST, anodes);
+
+    // Prepare the anodes for the next call.
+    // see http://en.wikipedia.org/wiki/Circular_shift
+    anodes = (anodes >> 1) | (anodes << 7);
 
 	++current_row;
 	if (current_row > 7) {
