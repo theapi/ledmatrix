@@ -16,6 +16,10 @@
 // From Android.h
 #define LSBFIRST 0
 #define MSBFIRST 1
+#define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+#define bitSet(value, bit) ((value) |= (1UL << (bit)))
+#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
+#define bitWrite(value, bit, bitvalue) (bitvalue ? bitSet(value, bit) : bitClear(value, bit))
 
 // 32 * 0.000004 = 0.000128 so ISR gets called every 128us
 // 32 * 0.000004 * 8 = 0.001024 = about 1khz for whole matrix (NB zero based so register one less)
@@ -50,6 +54,7 @@ void frameBufferFlipV(void);
 void frameBufferFlipH(void);
 void frameFlipH(void);
 void frameFlipV(void);
+void frameRotate(int degrees);
 void latchLow(void);
 void latchHigh(void);
 void ledsDisable(void);
@@ -253,10 +258,9 @@ main (void)
                     source_index = 0;
                 }
     		    setFrame_P(font[source_index], font[source_index], font[source_index]);
-    		    // Currently the font is flipped.
-    		    // @todo sort out the font
-    		    //frameFlipH();
-    		    //frameFlipV();
+    		    // Currently the font needs to be rotated.
+    		    // @todo pre-rotate the font
+    		    frameRotate(270);
     		} else {
     		    if (source_index >= SOURCE_SIZE_PATTERN) {
     		        source_index = 0;
@@ -286,6 +290,29 @@ main (void)
 /********************************************************************************
 Functions
 ********************************************************************************/
+
+void frameRotate(int degrees)
+{
+    uint8_t tmp[3][8];
+    uint8_t i;
+    uint8_t j;
+
+    for (i = 0; i <= 7; i++){
+        tmp[0][i] = current_frame[0][i];
+        tmp[1][i] = current_frame[1][i];
+        tmp[2][i] = current_frame[2][i];
+    }
+
+    if (degrees == 270) {
+      for (i = 0; i <= 7; i++){
+        for (j = 0; j <= 7; j++){
+            bitWrite(current_frame[0][i], j, bitRead(tmp[0][7 - j], (i)) );
+            bitWrite(current_frame[1][i], j, bitRead(tmp[1][7 - j], (i)) );
+            bitWrite(current_frame[2][i], j, bitRead(tmp[2][7 - j], (i)) );
+        }
+      }
+    }
+}
 
 /**
  * Flip the frame  on the horizontal axis.
