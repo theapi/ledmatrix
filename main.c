@@ -5,7 +5,7 @@
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 
-#define BAUD 115200
+#define BAUD 57600
 #include <util/setbaud.h>
 
 #define PIN_DATA   PB3 // DS - MOSI - 11
@@ -49,6 +49,7 @@ void USART_Transmit( unsigned char data );
 void USART_rxProcess(void);
 void setFrame(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8]);
 void setFrame_P(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8]);
+void setFrameColoured(const uint8_t red[8][8], const uint8_t green[8][8], const uint8_t blue[8][8]);
 void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
 void frameBufferFlipV(void);
 void frameBufferFlipH(void);
@@ -73,6 +74,7 @@ uint8_t foo;
 uint8_t cycle_count; // keeps track of the number of times a complete multiplex loop has happened.
 uint8_t current_row; // Which row of the frame is currently being shown via the multiplexing.
 uint8_t current_frame[3][8]; // The current frame being displayed
+uint8_t current_frame_coloured[3][8][8];
 uint8_t framebuffer[3][8]; // the current cycle of the frame, seperated into RGB (the ones and zeros to send)
 unsigned long current_frame_duration = 2000 * MILLIS_TICKS; // millis to show the current frame.
 
@@ -116,6 +118,50 @@ const uint8_t pattern[SOURCE_SIZE_PATTERN][8] PROGMEM = {
     {0x00, 0x66, 0x66, 0x00, 0x7E, 0x7E, 0x3C, 0x00}, // :O
 };
 
+const uint8_t imageRed[8][8] = {
+    {13, 13, 13, 13, 13, 14, 14, 15 },
+    {13, 12, 11, 11, 13, 13, 2, 2 },
+    {13, 11, 11, 12, 13, 13, 13, 13 },
+    {13, 11, 11, 12, 13, 13, 13, 13 },
+    {14, 13, 13, 13, 13, 12, 2, 2 },
+    {13, 13, 13, 13, 13, 12, 2, 2 },
+    {13, 13, 13, 13, 13, 12, 2, 2 },
+    {13, 13, 13, 13, 13, 12, 12, 12 },
+};
+const uint8_t imageGreen[8][8] = {
+    {13, 12, 12, 13, 13, 13, 14, 14, },
+    {12, 4, 4, 4, 13, 13, 2, 2, },
+    {13, 4, 4, 4, 13, 13, 12, 12, },
+    {13, 4, 4, 4, 13, 13, 13, 13, },
+    {12, 13, 13, 13, 13, 12, 5, 5, },
+    {13, 13, 13, 13, 13, 12, 5, 5, },
+    {12, 13, 12, 13, 13, 12, 3, 3, },
+    {13, 13, 13, 13, 13, 12, 12, 12, },
+};
+
+const uint8_t imageBlue[8][8] = {
+    {12, 12, 12, 14, 13, 13, 14, 14, },
+    {12, 2, 2, 2, 13, 13, 2, 2, },
+    {13, 2, 2, 1, 13, 13, 12, 12, },
+    {12, 2, 2, 2, 13, 13, 13, 13, },
+    {13, 13, 12, 12, 13, 12, 9, 8, },
+    {12, 13, 12, 12, 12, 12, 8, 8, },
+    {12, 12, 12, 12, 13, 12, 4, 4, },
+    {12, 13, 12, 13, 13, 12, 12, 12, },
+};
+
+/*
+const uint8_t imageBlue[8][8] = {
+    {12, 12, 12, 0, 0, 0, 0, 0, },
+    {12, 12, 12, 0, 0, 0, 0, 0, },
+    {12, 12, 12, 0, 0, 0, 0, 0, },
+    {0, 0, 0, 0, 0, 0, 0, 0, },
+    {0, 0, 0, 0, 0, 0, 0, 0, },
+    {0, 0, 0, 0, 0, 0, 0, 0, },
+    {0, 0, 0, 0, 0, 0, 0, 0, },
+    {0, 0, 0, 0, 0, 0, 0, 0, },
+};
+*/
 
 volatile unsigned int time1;
 volatile unsigned int frame_time;
@@ -221,8 +267,9 @@ main (void)
       0b10000000,
       0b10000000,
     };
-	setFrame(frame, frame, frame);
-    //setFrameBuffer(frame, frame, frame);
+	//setFrame(frame, frame, frame);
+
+	setFrameColoured(imageRed, imageGreen, imageBlue);
 
 	initSPI();
 	USART_Init();
@@ -251,7 +298,7 @@ main (void)
     	if (frame_time == 0) {
     		// reset the frame timer
     		frame_time = current_frame_duration;
-
+/*
 
     		if (source_array == 'f') {
     		    if (source_index >= SOURCE_SIZE_FONT) {
@@ -269,16 +316,40 @@ main (void)
     		    //source_index++;
     		}
     		source_index++;
+    		*/
     	}
 
     	if (!data_sent) {
+
+    	    // current_frame_coloured
+    	    uint8_t i;
+    	    uint8_t r = 0;
+    	    uint8_t g = 0;
+    	    uint8_t b = 0;
+    	    for (i=0; i<8; i++) {
+    	        if (current_frame_coloured[0][current_row][i] < cycle_count) {
+    	            r |= (1 << i);
+    	        }
+    	        if (current_frame_coloured[1][current_row][i] < cycle_count) {
+                    g |= (1 << i);
+                }
+    	        if (current_frame_coloured[2][current_row][i] < cycle_count) {
+                    b |= (1 << i);
+                }
+    	    }
+
+    	    sendLine(r,g,b);
+
+    	    //
+
+    	    /*
     		// Send the next line ready to be latched in the ISR
     		sendLine(
-    			current_frame[0][current_row], // Red
-				current_frame[1][current_row], // Green
-				current_frame[2][current_row]  // Blue
+    			~current_frame[0][current_row], // Red
+				~current_frame[1][current_row], // Green
+				~current_frame[2][current_row]  // Blue
     		);
-
+    	     */
 			// Flag that the data is ready to be latched in the ISR.
     		data_sent = 1;
     	}
@@ -399,6 +470,23 @@ void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8])
     framebuffer[0][i] = red[i];
     framebuffer[1][i] = green[i];
     framebuffer[2][i] = blue[i];
+  }
+}
+
+/**
+ * ...
+ */
+void setFrameColoured(const uint8_t red[8][8], const uint8_t green[8][8], const uint8_t blue[8][8])
+{
+  uint8_t i;
+  uint8_t j;
+
+  for (i = 0; i < 8; i++) {
+      for (j = 0; j < 8; j++) {
+        current_frame_coloured[0][i][j] = red[i][j];
+        current_frame_coloured[1][i][j] = green[i][j];
+        current_frame_coloured[2][i][j] = blue[i][j];
+      }
   }
 }
 
@@ -525,25 +613,25 @@ void ledsDisable(void)
  */
 void sendLine(uint8_t red, uint8_t green, uint8_t blue)
 {
-	// NOT (invert) the bytes so the patterns are 1 == ON 0 == OFF (common anode)
-    if (cycle_count < 5) {
-        sendByte(MSBFIRST, ~red);
-    } else {
-        sendByte(MSBFIRST, ~0);
-    }
 
-    if (cycle_count < 12) {
-        sendByte(MSBFIRST, ~blue);
-    } else {
-        sendByte(MSBFIRST, ~0);
-    }
+    //if (cycle_count < 5) {
+        sendByte(MSBFIRST, red);
+    //} else {
+      //  sendByte(MSBFIRST, ~0);
+    //}
+
+    //if (cycle_count < 12) {
+        sendByte(MSBFIRST, blue);
+    //} else {
+      //  sendByte(MSBFIRST, ~0);
+    //}
 
 	// YEP, the hardware I built needs the green to be least significate bit first :(
-    if (cycle_count < 16) {
-        sendByte(LSBFIRST, ~green);
-	} else {
-        sendByte(LSBFIRST, ~0);
-    }
+    //if (cycle_count < 16) {
+        sendByte(LSBFIRST, green);
+	//} else {
+      //  sendByte(LSBFIRST, ~0);
+    //}
 
 	// ANODES
     sendByte(MSBFIRST, anodes);
