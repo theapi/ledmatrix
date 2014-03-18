@@ -21,11 +21,15 @@ im.save("out.gif", "GIF")
 
 # pixels = list(im.getdata())
 # pixels = im.load()
+buf = "";
 for x in range(8):
     for y in range(8):
         red, green, blue = im.getpixel((x,y))
-        buf = "%d,%d,%d" % (red, green, blue)
-	print buf
+        # @todo http://docs.python.org/2.7/library/functions.html#bytearray
+        buf += "%d,%d,%d-" % (red, green, blue)
+	
         #cpixel = pixels[x, y]
         #print cpixel
+    print buf
+    buf = ""
 
