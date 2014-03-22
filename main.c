@@ -29,14 +29,14 @@
 #define T1 1 * MILLIS_TICKS // timeout value (mSec)
 #define MAX_CYCLE_COUNT 16 // number of cycles needed brightness (a cycle is lighting each row once)
 
-#define RX_BUFFER_LEN 64 // How many bytes the usart receive buffer can hold
-#define TX_BUFFER_LEN 64 // How many bytes the usart send buffer can hold
+#define RX_BUFFER_LEN 254 // How many bytes the usart receive buffer can hold
+#define TX_BUFFER_LEN 254 // How many bytes the usart send buffer can hold
 
 
 #define SOURCE_SIZE_PATTERN 7 // The number of items in the pattern source array.
 
 #define SOURCE_SIZE_FONT    234 // The number of items in the font source array.
-#include "font.h"
+//#include "font.h"
 
 /********************************************************************************
 Function Prototypes
@@ -49,7 +49,7 @@ void USART_Transmit( unsigned char data );
 void USART_rxProcess(void);
 void setFrame(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8]);
 void setFrame_P(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8]);
-void setFrameColoured(const uint8_t red[8][8], const uint8_t green[8][8], const uint8_t blue[8][8]);
+void setFrameColoured(uint8_t red[8][8], uint8_t green[8][8], uint8_t blue[8][8]);
 void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
 void frameBufferFlipV(void);
 void frameBufferFlipH(void);
@@ -65,7 +65,8 @@ void sendByte(uint8_t bitOrder, uint8_t byte);
 uint8_t bitReverse(uint8_t x);
 void swap(uint8_t *px, uint8_t *py);
 
-
+void buildImageFromString(uint8_t image[][8][8], uint8_t str[]);
+//void buildImage(uint8_t image[][8][8], uint8_t str[]);
 
 /********************************************************************************
 Global Variables
@@ -75,6 +76,8 @@ uint8_t cycle_count; // keeps track of the number of times a complete multiplex 
 uint8_t current_row; // Which row of the frame is currently being shown via the multiplexing.
 uint8_t current_frame[3][8]; // The current frame being displayed
 uint8_t current_frame_coloured[3][8][8];
+uint8_t image[3][8][8]; // A coloured image
+//uint8_t image[3][8][8];
 uint8_t framebuffer[3][8]; // the current cycle of the frame, seperated into RGB (the ones and zeros to send)
 unsigned long current_frame_duration = 2000 * MILLIS_TICKS; // millis to show the current frame.
 
@@ -93,6 +96,7 @@ uint8_t source_index; // The source array index that is currently being shown.
 // anode low = ON with pnp
 uint8_t anodes = 0b01111111;
 
+
 /*
 uint8_t pattern[1][8] = {
 	{
@@ -108,7 +112,7 @@ uint8_t pattern[1][8] = {
 };
 */
 
-const uint8_t pattern[SOURCE_SIZE_PATTERN][8] PROGMEM = {
+uint8_t pattern[SOURCE_SIZE_PATTERN][8] PROGMEM = {
     {0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xFF}, // |_
     {0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xFF, 0xFF}, // |_
     {0x80, 0x80, 0x80, 0x80, 0x80, 0xFF, 0x80, 0xFF}, // |_
@@ -118,50 +122,66 @@ const uint8_t pattern[SOURCE_SIZE_PATTERN][8] PROGMEM = {
     {0x00, 0x66, 0x66, 0x00, 0x7E, 0x7E, 0x3C, 0x00}, // :O
 };
 
-const uint8_t imageRed[8][8] = {
-    {13, 13, 13, 13, 13, 14, 14, 15 },
-    {13, 12, 11, 11, 13, 13, 2, 2 },
-    {13, 11, 11, 12, 13, 13, 13, 13 },
-    {13, 11, 11, 12, 13, 13, 13, 13 },
-    {14, 13, 13, 13, 13, 12, 2, 2 },
-    {13, 13, 13, 13, 13, 12, 2, 2 },
-    {13, 13, 13, 13, 13, 12, 2, 2 },
-    {13, 13, 13, 13, 13, 12, 12, 12 },
-};
-const uint8_t imageGreen[8][8] = {
-    {13, 12, 12, 13, 13, 13, 14, 14, },
-    {12, 4, 4, 4, 13, 13, 2, 2, },
-    {13, 4, 4, 4, 13, 13, 12, 12, },
-    {13, 4, 4, 4, 13, 13, 13, 13, },
-    {12, 13, 13, 13, 13, 12, 5, 5, },
-    {13, 13, 13, 13, 13, 12, 5, 5, },
-    {12, 13, 12, 13, 13, 12, 3, 3, },
-    {13, 13, 13, 13, 13, 12, 12, 12, },
-};
 
-const uint8_t imageBlue[8][8] = {
-    {12, 12, 12, 14, 13, 13, 14, 14, },
-    {12, 2, 2, 2, 13, 13, 2, 2, },
-    {13, 2, 2, 1, 13, 13, 12, 12, },
-    {12, 2, 2, 2, 13, 13, 13, 13, },
-    {13, 13, 12, 12, 13, 12, 9, 8, },
-    {12, 13, 12, 12, 12, 12, 8, 8, },
-    {12, 12, 12, 12, 13, 12, 4, 4, },
-    {12, 13, 12, 13, 13, 12, 12, 12, },
-};
+uint8_t imgStr[] = "13,13,12,13,12,12,13,12,12,13,13,14,13,13,13,14,13,13,\
+14,14,14,15,14,14,13,12,12,12,4,2,11,4,2,11,4,2,13,13,13,13,13,13,2,2,2,\
+2,2,2,13,13,13,11,4,2,11,4,2,12,4,1,13,13,13,13,13,13,13,12,12,\
+13,12,12,13,13,12,11,4,2,11,4,2,12,4,2,13,13,13,13,13,13,13,13,\
+13,13,13,13,14,12,13,13,13,13,13,13,12,13,13,12,13,13,13,12,12,\
+12,2,5,9,2,5,8,13,13,12,13,13,13,13,13,12,13,13,12,13,13,12,12,\
+12,12,2,5,8,2,5,8,13,12,12,13,13,12,13,12,12,13,13,12,13,13,13,\
+12,12,12,2,3,4,2,3,4,13,13,12,13,13,13,13,13,12,13,13,13,13,13,\
+13,12,12,12,12,12,12,12,12,12,";
 
 /*
-const uint8_t imageBlue[8][8] = {
-    {12, 12, 12, 0, 0, 0, 0, 0, },
-    {12, 12, 12, 0, 0, 0, 0, 0, },
-    {12, 12, 12, 0, 0, 0, 0, 0, },
-    {0, 0, 0, 0, 0, 0, 0, 0, },
-    {0, 0, 0, 0, 0, 0, 0, 0, },
-    {0, 0, 0, 0, 0, 0, 0, 0, },
-    {0, 0, 0, 0, 0, 0, 0, 0, },
-    {0, 0, 0, 0, 0, 0, 0, 0, },
+uint8_t imgStr[] = "9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,\
+9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,\
+9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,\
+9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,\
+9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,\
+9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,\
+9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,\
+9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,";
+*/
+
+
+
+/*
+uint8_t image[3][8][8] =
+{
+    { // red
+        {13, 13, 13, 13, 13, 14, 14, 15 },
+        {13, 12, 11, 11, 13, 13, 2, 2 },
+        {13, 11, 11, 12, 13, 13, 13, 13 },
+        {13, 11, 11, 12, 13, 13, 13, 13 },
+        {14, 13, 13, 13, 13, 12, 2, 2 },
+        {13, 13, 13, 13, 13, 12, 2, 2 },
+        {13, 13, 13, 13, 13, 12, 2, 2 },
+        {13, 13, 13, 13, 13, 12, 12, 12 },
+    },
+    { // green
+        {13, 12, 12, 13, 13, 13, 14, 14, },
+        {12, 4, 4, 4, 13, 13, 2, 2, },
+        {13, 4, 4, 4, 13, 13, 12, 12, },
+        {13, 4, 4, 4, 13, 13, 13, 13, },
+        {12, 13, 13, 13, 13, 12, 5, 5, },
+        {13, 13, 13, 13, 13, 12, 5, 5, },
+        {12, 13, 12, 13, 13, 12, 3, 3, },
+        {13, 13, 13, 13, 13, 12, 12, 12, },
+    },
+    { // blue
+        {12, 12, 12, 14, 13, 13, 14, 14, },
+        {12, 2, 2, 2, 13, 13, 2, 2, },
+        {13, 2, 2, 1, 13, 13, 12, 12, },
+        {12, 2, 2, 2, 13, 13, 13, 13, },
+        {13, 13, 12, 12, 13, 12, 9, 8, },
+        {12, 13, 12, 12, 12, 12, 8, 8, },
+        {12, 12, 12, 12, 13, 12, 4, 4, },
+        {12, 13, 12, 13, 13, 12, 12, 12, },
+    }
 };
 */
+
 
 volatile unsigned int time1;
 volatile unsigned int frame_time;
@@ -183,30 +203,31 @@ Interupt Routines
 ISR (TIMER0_COMPA_vect)
 {
 	// Do as little as possible in this ISR.
+    if (data_sent) {
+        // Just latch the data.
+        ledsDisable();
+        latchLow();
+        latchHigh();
 
-	// Just latch the data.
-	ledsDisable();
-    latchLow();
-    latchHigh();
-
-    // Reset the flag so new data can now be sent.
-    data_sent = 0;
+        // Reset the flag so new data can now be sent.
+        data_sent = 0;
 
 
-	// Decrement the time if not already zero
-    if (time1 > 0)  --time1;
-    if (frame_time > 0)  --frame_time;
+        // Decrement the time if not already zero
+        if (time1 > 0)  --time1;
+        if (frame_time > 0)  --frame_time;
 
-/*
-    // Dumbass delay because time is needed to reduce ghosting.
-    uint8_t j = 5;
-    while(--j) {
-    	ledsDisable();
+    /*
+        // Dumbass delay because time is needed to reduce ghosting.
+        uint8_t j = 5;
+        while(--j) {
+            ledsDisable();
+        }
+    */
+
+        // Now enable the leds again.
+        ledsEnable();
     }
-*/
-
-    // Now enable the leds again.
-    ledsEnable();
 }
 
 /**
@@ -257,6 +278,9 @@ main (void)
 	DDRB = 0xFF; // set all to output
 	PORTB = 0; // all off
 
+
+
+	/*
 	uint8_t frame[8] = {
       0b11111111,
       0b10000000,
@@ -269,10 +293,13 @@ main (void)
     };
 	//setFrame(frame, frame, frame);
 
-	setFrameColoured(imageRed, imageGreen, imageBlue);
+	 */
 
-	initSPI();
+
+
 	USART_Init();
+	initSPI();
+
 	timerInit();
 
 	ledsEnable(); // leds on
@@ -281,6 +308,9 @@ main (void)
 
 	// crank up the ISRs
 	sei();
+
+	buildImageFromString(image, imgStr);
+    setFrameColoured(image[0], image[1], image[2]);
 
 	// main loop
     while(1) {
@@ -327,13 +357,13 @@ main (void)
     	    uint8_t g = 0;
     	    uint8_t b = 0;
     	    for (i=0; i<8; i++) {
-    	        if (current_frame_coloured[0][current_row][i] < cycle_count) {
+    	        if (current_frame_coloured[0][current_row][i] <= cycle_count) {
     	            r |= (1 << i);
     	        }
-    	        if (current_frame_coloured[1][current_row][i] < cycle_count) {
+    	        if (current_frame_coloured[1][current_row][i] <= cycle_count) {
                     g |= (1 << i);
                 }
-    	        if (current_frame_coloured[2][current_row][i] < cycle_count) {
+    	        if (current_frame_coloured[2][current_row][i] <= cycle_count) {
                     b |= (1 << i);
                 }
     	    }
@@ -361,6 +391,106 @@ main (void)
 /********************************************************************************
 Functions
 ********************************************************************************/
+
+void buildImageFromString(uint8_t image[][8][8], uint8_t str[])
+{
+    int i = 0; // index of the string array
+    uint8_t state = 0;
+    uint8_t col = 0;
+    uint8_t row = 0;
+    uint8_t num = 0;
+    uint8_t c = 0;
+
+    while(str[i] != 0) {
+        c = str[i];
+
+        // Only interested in numbers as they make up the index of the array to use.
+        // ASCII hex values 0x30 to 0x30 are decimal 0 to 9
+        if (c > 0x2F && c < 0x3A) {
+            if (num > 0) {
+                // Expecting decimal numbers like 24,
+                // so for each new argument multiply by ten (shift left in decimal).
+                num *= 10;
+                num += c - 0x30;
+            } else {
+                num = c - 0x30;
+            }
+
+        } else if (c == ',') { // Comma denotes next colour.
+            //USART_Transmit(num);
+            if (state == 0) { // red
+                image[0][row][col] = num;
+            } else if (state == 1) { // green (1 is a comma)
+                image[1][row][col] = num;
+            } else if (state == 2) { // blue (3 is a comma)
+                image[2][row][col] = num;
+            }
+            // Next colour
+            num = 0;
+            state++;
+        }
+
+        // r,g,b,
+        if (state > 2) {
+            state = 0;
+            // Start building next pixel.
+            col++;
+        }
+
+        if (col > 7) {
+            col = 0;
+            row++;
+        }
+
+        if (row > 7) {
+            return;
+        }
+
+        i++;
+    }
+}
+
+/*
+void buildImage(struct colour image[8][8], uint8_t str[])
+{
+    uint8_t i = 0;
+    uint8_t c = 0;
+    uint8_t j = 0;
+    uint8_t col = 0;
+    uint8_t row = 0;
+    struct colour px;
+
+    while(str[i] != '\0') {
+
+        if (c == 0) {
+            px.r = str[i];
+        } else if (c == 2) {
+            px.g = str[i];
+        } else if (c == 4) {
+            px.b = str[i];
+            image[row][col] = px;
+        }
+
+        if (j > 7) {
+            j = 0;
+            col++;
+        }
+
+        if (col > 7) {
+            col = 0;
+            row++;
+        }
+
+        if (c > 4) {
+            c = 0;
+            j++;
+        }
+
+        i++;
+        c++;
+    }
+}
+*/
 
 void frameRotate(int degrees)
 {
@@ -476,7 +606,7 @@ void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8])
 /**
  * ...
  */
-void setFrameColoured(const uint8_t red[8][8], const uint8_t green[8][8], const uint8_t blue[8][8])
+void setFrameColoured(uint8_t red[8][8], uint8_t green[8][8], uint8_t blue[8][8])
 {
   uint8_t i;
   uint8_t j;
