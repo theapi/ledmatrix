@@ -18,13 +18,14 @@ im.convert("P", palette=Image.ADAPTIVE, colors=256)
 #im.save("out.gif", "GIF")
 
 
-buf = ""
+
 # pixels = list(im.getdata())
 # pixels = im.load()
 bufRed = "{"
 bufGreen = "{"
 bufBlue = "{"
 for x in range(8):
+    buf = ""
     for y in range(8):
         red, green, blue = im.getpixel((x,y))
         # @todo http://docs.python.org/2.7/library/functions.html#bytearray
@@ -36,11 +37,14 @@ for x in range(8):
 
         #cpixel = pixels[x, y]
         #print cpixel
+
+    buf += "\\"
+    print buf
     #bufRed += "},\n{"
     #bufGreen += "},\n{"
     #bufBlue += "},\n{"
 
-print buf
+#print buf
 #print bufRed
 #print
 #print bufGreen
