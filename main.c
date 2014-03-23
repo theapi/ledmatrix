@@ -5,17 +5,13 @@
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 
-#define BAUD 57600
-#include <util/setbaud.h>
 
-#define PIN_DATA   PB3 // DS - MOSI - 11
-#define PIN_CLOCK  PB5 // SH_CP - SCK - 13
-#define PIN_LATCH  PB1 // ST_CP - 9
-#define PIN_OE     PC3 // Output Enable - 17
+
+#include "USART.h"
+#include "matrix.h"
+
 
 // From Android.h
-#define LSBFIRST 0
-#define MSBFIRST 1
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 #define bitSet(value, bit) ((value) |= (1UL << (bit)))
 #define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
@@ -27,16 +23,13 @@
 #define MILLIS_TICKS 8  // number of ISR calls before a millisecond is counted (ish)
 
 #define T1 1 * MILLIS_TICKS // timeout value (mSec)
-#define MAX_CYCLE_COUNT 16 // number of cycles needed brightness (a cycle is lighting each row once)
 
-#define RX_BUFFER_LEN 254 // How many bytes the usart receive buffer can hold
-#define TX_BUFFER_LEN 254 // How many bytes the usart send buffer can hold
 
 
 #define SOURCE_SIZE_PATTERN 7 // The number of items in the pattern source array.
 
 #define SOURCE_SIZE_FONT    234 // The number of items in the font source array.
-//#include "font.h"
+#include "font.h"
 
 /********************************************************************************
 Function Prototypes
@@ -44,9 +37,7 @@ Function Prototypes
 
 void timerInit(void); //all the usual mcu stuff
 void initSPI(void);
-void USART_Init();
-void USART_Transmit( unsigned char data );
-void USART_rxProcess(void);
+
 void setFrame(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8]);
 void setFrame_P(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8]);
 void setFrameColoured(uint8_t red[8][8], uint8_t green[8][8], uint8_t blue[8][8]);
@@ -56,15 +47,10 @@ void frameBufferFlipH(void);
 void frameFlipH(void);
 void frameFlipV(void);
 void frameRotate(int degrees);
-void latchLow(void);
-void latchHigh(void);
-void ledsDisable(void);
-void ledsEnable(void);
-void sendLine(uint8_t red, uint8_t blue, uint8_t green);
-void sendByte(uint8_t bitOrder, uint8_t byte);
+
 uint8_t bitReverse(uint8_t x);
 void swap(uint8_t *px, uint8_t *py);
-
+void rxProcess(void);
 void buildImageFromString(uint8_t image[][8][8], uint8_t str[]);
 //void buildImage(uint8_t image[][8][8], uint8_t str[]);
 
@@ -72,12 +58,13 @@ void buildImageFromString(uint8_t image[][8][8], uint8_t str[]);
 Global Variables
 ********************************************************************************/
 uint8_t foo;
+
 uint8_t cycle_count; // keeps track of the number of times a complete multiplex loop has happened.
 uint8_t current_row; // Which row of the frame is currently being shown via the multiplexing.
 uint8_t current_frame[3][8]; // The current frame being displayed
 uint8_t current_frame_coloured[3][8][8];
 uint8_t image[3][8][8]; // A coloured image
-//uint8_t image[3][8][8];
+
 uint8_t framebuffer[3][8]; // the current cycle of the frame, seperated into RGB (the ones and zeros to send)
 unsigned long current_frame_duration = 2000 * MILLIS_TICKS; // millis to show the current frame.
 
@@ -88,13 +75,9 @@ uint8_t rx_cmd;  // The command being requested by serial data.
 uint8_t rx_args; // The argument for rx_cmd being requested by serial data.
 
 
-uint8_t junk; // throwaway variable for shift register SPI return data
-
 uint8_t source_array; // The array that is the source of data.
 uint8_t source_index; // The source array index that is currently being shown.
 
-// anode low = ON with pnp
-uint8_t anodes = 0b01111111;
 
 
 /*
@@ -186,13 +169,7 @@ volatile unsigned int time1;
 volatile unsigned int frame_time;
 volatile uint8_t data_sent; // whether the data has been sent and just needs to be latched.
 
-volatile unsigned char rx_buffer[RX_BUFFER_LEN];
-volatile unsigned char rx_head;
-unsigned char rx_tail; // The last buffer byte processed
 
-volatile unsigned char tx_buffer[TX_BUFFER_LEN];
-volatile unsigned char tx_head;
-volatile unsigned char tx_tail;
 
 /********************************************************************************
 Interupt Routines
@@ -229,39 +206,6 @@ ISR (TIMER0_COMPA_vect)
     }
 }
 
-/**
- * Interrupt when the USART receives a byte.
- */
-ISR(USART_RX_vect)
-{
-   // Add to the receive buffer
-   rx_buffer[rx_head] = UDR0;
-
-   // Increment the index
-   rx_head++;
-   if (rx_head >= RX_BUFFER_LEN) {
-       rx_head = 0;
-   }
-}
-
-/**
- * Interrupt when the USART is ready to send more bytes.
- */
-ISR(USART_UDRE_vect)
-{
-    // If head & tail are not in sync, send the next byte in byte.
-    if (tx_head != tx_tail) {
-        UDR0 = tx_buffer[tx_tail];
-        // Increment the tail index
-        tx_tail++;
-        if (tx_tail >= TX_BUFFER_LEN) {
-            tx_tail = 0;
-        }
-    } else {
-        // Nothing left to send so turn off this interrupt
-        UCSR0B &= ~(1 << UDRIE0);
-    }
-}
 
 
 /********************************************************************************
@@ -315,7 +259,7 @@ main (void)
     while(1) {
 
         // Handle unprocessed received serial data.
-        USART_rxProcess();
+        rxProcess();
 
     	if (time1 == 0) {
     		// reset the timer
@@ -368,6 +312,17 @@ main (void)
     	    }
 
     	    sendLine(r,g,b);
+    	    ++current_row;
+            if (current_row > 7) {
+                current_row = 0;
+
+                // One cycle completed.
+                ++cycle_count;
+                if (cycle_count >= MAX_CYCLE_COUNT) {
+                    cycle_count = 0;
+                }
+
+            }
 
     	    //
 
@@ -402,6 +357,7 @@ void buildImageFromString(uint8_t image[][8][8], uint8_t str[])
 
     while(str[i] != 0) {
         c = str[i];
+        //USART_Transmit(c);
 
         // Only interested in numbers as they make up the index of the array to use.
         // ASCII hex values 0x30 to 0x30 are decimal 0 to 9
@@ -448,48 +404,6 @@ void buildImageFromString(uint8_t image[][8][8], uint8_t str[])
         i++;
     }
 }
-
-/*
-void buildImage(struct colour image[8][8], uint8_t str[])
-{
-    uint8_t i = 0;
-    uint8_t c = 0;
-    uint8_t j = 0;
-    uint8_t col = 0;
-    uint8_t row = 0;
-    struct colour px;
-
-    while(str[i] != '\0') {
-
-        if (c == 0) {
-            px.r = str[i];
-        } else if (c == 2) {
-            px.g = str[i];
-        } else if (c == 4) {
-            px.b = str[i];
-            image[row][col] = px;
-        }
-
-        if (j > 7) {
-            j = 0;
-            col++;
-        }
-
-        if (col > 7) {
-            col = 0;
-            row++;
-        }
-
-        if (c > 4) {
-            c = 0;
-            j++;
-        }
-
-        i++;
-        c++;
-    }
-}
-*/
 
 void frameRotate(int degrees)
 {
@@ -702,128 +616,6 @@ uint8_t bitReverse(uint8_t x)
     return x;
 }
 
-/**
- * Set the latch low.
- */
-void latchLow(void)
-{
-	PORTB &= ~(1 << PIN_LATCH);
-}
-
-/**
- * Take the latch pin high, to move the shifted data into position
- */
-void latchHigh(void)
-{
-	PORTB |= (1 << PIN_LATCH);
-}
-
-/**
- * OE low to turn on the leds.
- */
-void ledsEnable(void)
-{
-	PORTC &= ~(1 << PIN_OE);
-}
-
-/**
- * Turn off the leds with OE high.
- *
- * To prevent ghosting/leakage.
- * The process seems to need time to settle (parasitic capcitance?)
- */
-void ledsDisable(void)
-{
-	PORTC |= (1 << PIN_OE);
-}
-
-/**
- * Send out the next line of prepared data.
- */
-void sendLine(uint8_t red, uint8_t green, uint8_t blue)
-{
-
-    //if (cycle_count < 5) {
-        sendByte(MSBFIRST, red);
-    //} else {
-      //  sendByte(MSBFIRST, ~0);
-    //}
-
-    //if (cycle_count < 12) {
-        sendByte(MSBFIRST, blue);
-    //} else {
-      //  sendByte(MSBFIRST, ~0);
-    //}
-
-	// YEP, the hardware I built needs the green to be least significate bit first :(
-    //if (cycle_count < 16) {
-        sendByte(LSBFIRST, green);
-	//} else {
-      //  sendByte(LSBFIRST, ~0);
-    //}
-
-	// ANODES
-    sendByte(MSBFIRST, anodes);
-
-    // Prepare the anodes for the next call.
-    // see http://en.wikipedia.org/wiki/Circular_shift
-    anodes = (anodes >> 1) | (anodes << 7);
-
-	++current_row;
-	if (current_row > 7) {
-		current_row = 0;
-
-		// One cycle completed.
-		++cycle_count;
-		if (cycle_count >= MAX_CYCLE_COUNT) {
-		    cycle_count = 0;
-		}
-
-	}
-}
-
-void sendByte(uint8_t bitOrder, uint8_t byte)
-{
-/*
-    // Bit bang
-	uint8_t i;
-	uint8_t bit;
-
-	for (i = 0; i < 8; i++)  {
-		if (bitOrder == LSBFIRST) {
-			bit = i;
-		} else {
-			bit = 7 - i;
-		}
-
-		if (byte & (1 << bit)) {
-			PORTB |= (1 << PIN_DATA); // HIGH
-		} else {
-			PORTB &= ~(1 << PIN_DATA); // LOW
-		}
-
-		// Clock in the bit
-		PORTB |= (1 << PIN_CLOCK); // HIGH
-		PORTB &= ~(1 << PIN_CLOCK); // LOW
-	}
-*/
-
-	// SPI
-	if (bitOrder == LSBFIRST) {
-		SPCR |= (1 << DORD); // high
-	} else {
-		SPCR &= ~(1 << DORD); // low
-	}
-
-	// Send the byte
-	SPDR = byte;
-	// Wait for SPI process to finish
-	while(!(SPSR & (1<<SPIF)));
-	// Need to read the result
-	junk = SPDR;
-
-}
-
 void timerInit(void)
 {
 	// set up timer 0 for 1 mSec ticks (timer 0 is an 8 bit timer)
@@ -878,49 +670,6 @@ void initSPI(void)
 */
 }
 
-void USART_Init(void)
-{
-    //UBRR0H = (UBRR >> 8); // Load upper 8-bits of the baud rate value into the high byte of the UBRR register
-    //UBRR0L = UBRR;        // Load lower 8-bits of the baud rate value into the low byte of the UBRR register
-
-    UBRR0H = UBRRH_VALUE;
-    UBRR0L = UBRRL_VALUE;
-
-    #if USE_2X
-        UCSR0A |= (1 << U2X0);
-    #else
-        UCSR0A &= ~(1 << U2X0);
-    #endif
-
-    // Use 8-bit character sizes & 1 stop bit
-    UCSR0C = (0 << USBS0) | (1 << UCSZ00) | (1 << UCSZ01);
-
-    // Enable receiver, transmitter and interrupt on receive.
-    UCSR0B = (1 << RXCIE0) | (1 << RXEN0) | (1 << TXEN0);
-}
-
-void USART_Transmit( unsigned char data )
-{
-    // Buffer the byte to be sent by the ISR
-    tx_buffer[tx_head] = data;
-    // Increment the head index
-    tx_head++;
-    if (tx_head >= TX_BUFFER_LEN) {
-        tx_head = 0;
-    }
-
-    // Ensure the interrupt to send this is on.
-    UCSR0B |= (1 << UDRIE0);
-
-    /*
-    // Wait for empty transmit buffer
-    while ( !( UCSR0A & (1 << UDRE0)) )
-        ;
-    // Put data into buffer, sends the data
-    UDR0 = data;
-    */
-}
-
 /**
  * State machine to handle the incoming serial data.
  *
@@ -929,7 +678,7 @@ void USART_Transmit( unsigned char data )
  * eg:
  * f23\n
  */
-void USART_rxProcess(void)
+void rxProcess(void)
 {
     if (rx_head == rx_tail) {
         // Nothing to do.
