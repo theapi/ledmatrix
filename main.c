@@ -9,7 +9,7 @@
 
 #include "USART.h"
 #include "matrix.h"
-
+#include "frame.h"
 
 // From Android.h
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
@@ -40,7 +40,7 @@ void initSPI(void);
 
 void setFrame(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8]);
 void setFrame_P(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8]);
-void setFrameColoured(uint8_t red[8][8], uint8_t green[8][8], uint8_t blue[8][8]);
+
 void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
 void frameBufferFlipV(void);
 void frameBufferFlipH(void);
@@ -181,9 +181,9 @@ ISR (TIMER0_COMPA_vect)
 	// Do as little as possible in this ISR.
     if (data_sent) {
         // Just latch the data.
-        ledsDisable();
-        latchLow();
-        latchHigh();
+        matrix_ledsDisable();
+        matrix_latchLow();
+        matrix_latchHigh();
 
         // Reset the flag so new data can now be sent.
         data_sent = 0;
@@ -202,7 +202,7 @@ ISR (TIMER0_COMPA_vect)
     */
 
         // Now enable the leds again.
-        ledsEnable();
+        matrix_ledsEnable();
     }
 }
 
@@ -216,7 +216,7 @@ main (void)
 {
 
 	DDRC = 0xFF; // set all to output
-	ledsDisable(); // Output enable high so the display is off
+	matrix_ledsDisable(); // Output enable high so the display is off
 
 	DDRB = 0xFF; // set all to output
 	PORTB = 0; // all off
@@ -245,7 +245,7 @@ main (void)
 
 	timerInit();
 
-	ledsEnable(); // leds on
+	matrix_ledsEnable(); // leds on
 
 	data_sent = 0;
 
@@ -253,7 +253,7 @@ main (void)
 	sei();
 
 	buildImageFromString(image, imgStr);
-    setFrameColoured(image[0], image[1], image[2]);
+    frame_setColoured(current_frame_coloured, image[0], image[1], image[2]);
 
 	// main loop
     while(1) {
@@ -311,7 +311,17 @@ main (void)
                 }
     	    }
 
-    	    sendLine(r,g,b);
+    	    matrix_sendLine(r,g,b);
+    	    /*
+            // Send the next line ready to be latched in the ISR
+            matrix_sendLine(
+                ~current_frame[0][current_row], // Red
+                ~current_frame[1][current_row], // Green
+                ~current_frame[2][current_row]  // Blue
+            );
+             */
+
+    	    // Prepare for the next row.
     	    ++current_row;
             if (current_row > 7) {
                 current_row = 0;
@@ -324,16 +334,6 @@ main (void)
 
             }
 
-    	    //
-
-    	    /*
-    		// Send the next line ready to be latched in the ISR
-    		sendLine(
-    			~current_frame[0][current_row], // Red
-				~current_frame[1][current_row], // Green
-				~current_frame[2][current_row]  // Blue
-    		);
-    	     */
 			// Flag that the data is ready to be latched in the ISR.
     		data_sent = 1;
     	}
@@ -516,22 +516,7 @@ void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8])
   }
 }
 
-/**
- * ...
- */
-void setFrameColoured(uint8_t red[8][8], uint8_t green[8][8], uint8_t blue[8][8])
-{
-  uint8_t i;
-  uint8_t j;
 
-  for (i = 0; i < 8; i++) {
-      for (j = 0; j < 8; j++) {
-        current_frame_coloured[0][i][j] = red[i][j];
-        current_frame_coloured[1][i][j] = green[i][j];
-        current_frame_coloured[2][i][j] = blue[i][j];
-      }
-  }
-}
 
 /**
  * Stores the data for the frames so the bytes are hex values of the brightness.

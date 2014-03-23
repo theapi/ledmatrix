@@ -5,20 +5,18 @@
  *      Author: peter
  */
 
-#include <avr/io.h>
 #include "matrix.h"
 
 
 // anode low = ON with pnp
 uint8_t anodes = 0b01111111;
-
-
-uint8_t junk; // throwaway variable for shift register SPI return data
+// throwaway variable for shift register SPI return data
+uint8_t junk;
 
 /**
  * Set the latch low.
  */
-void latchLow(void)
+void matrix_latchLow(void)
 {
     PORTB &= ~(1 << PIN_LATCH);
 }
@@ -26,7 +24,7 @@ void latchLow(void)
 /**
  * Take the latch pin high, to move the shifted data into position
  */
-void latchHigh(void)
+void matrix_latchHigh(void)
 {
     PORTB |= (1 << PIN_LATCH);
 }
@@ -34,7 +32,7 @@ void latchHigh(void)
 /**
  * OE low to turn on the leds.
  */
-void ledsEnable(void)
+void matrix_ledsEnable(void)
 {
     PORTC &= ~(1 << PIN_OE);
 }
@@ -45,7 +43,7 @@ void ledsEnable(void)
  * To prevent ghosting/leakage.
  * The process seems to need time to settle (parasitic capcitance?)
  */
-void ledsDisable(void)
+void matrix_ledsDisable(void)
 {
     PORTC |= (1 << PIN_OE);
 }
@@ -53,39 +51,23 @@ void ledsDisable(void)
 /**
  * Send out the next line of prepared data.
  */
-void sendLine(uint8_t red, uint8_t green, uint8_t blue)
+void matrix_sendLine(uint8_t red, uint8_t green, uint8_t blue)
 {
-
-    //if (cycle_count < 5) {
-        sendByte(MSBFIRST, red);
-    //} else {
-      //  sendByte(MSBFIRST, ~0);
-    //}
-
-    //if (cycle_count < 12) {
-        sendByte(MSBFIRST, blue);
-    //} else {
-      //  sendByte(MSBFIRST, ~0);
-    //}
+    matrix_sendByte(MSBFIRST, red);
+    matrix_sendByte(MSBFIRST, blue);
 
     // YEP, the hardware I built needs the green to be least significate bit first :(
-    //if (cycle_count < 16) {
-        sendByte(LSBFIRST, green);
-    //} else {
-      //  sendByte(LSBFIRST, ~0);
-    //}
+    matrix_sendByte(LSBFIRST, green);
 
     // ANODES
-    sendByte(MSBFIRST, anodes);
+    matrix_sendByte(MSBFIRST, anodes);
 
     // Prepare the anodes for the next call.
     // see http://en.wikipedia.org/wiki/Circular_shift
     anodes = (anodes >> 1) | (anodes << 7);
-
-
 }
 
-void sendByte(uint8_t bitOrder, uint8_t byte)
+void matrix_sendByte(uint8_t bitOrder, uint8_t byte)
 {
 /*
     // Bit bang
