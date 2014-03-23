@@ -9,23 +9,17 @@
 #define USART_H_
 
 
-#include <avr/interrupt.h>
-
 #define BAUD 57600
+
 #include <util/setbaud.h>
+#include <avr/interrupt.h>
 
 #define RX_BUFFER_LEN 254 // How many bytes the usart receive buffer can hold
 #define TX_BUFFER_LEN 254 // How many bytes the usart send buffer can hold
 
 void USART_Init();
 void USART_Transmit( unsigned char data );
-
-volatile unsigned char rx_buffer[RX_BUFFER_LEN];
-volatile unsigned char rx_head;
-unsigned char rx_tail; // The last buffer byte processed
-
-volatile unsigned char tx_buffer[TX_BUFFER_LEN];
-volatile unsigned char tx_head;
-volatile unsigned char tx_tail;
+uint8_t USART_Empty();
+uint8_t USART_ReadByte();
 
 #endif /* USART_H_ */

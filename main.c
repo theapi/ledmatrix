@@ -372,7 +372,7 @@ void buildImageFromString(uint8_t image[][8][8], uint8_t str[])
             }
 
         } else if (c == ',') { // Comma denotes next colour.
-            //USART_Transmit(num);
+            USART_Transmit(num);
             if (state == 0) { // red
                 image[0][row][col] = num;
             } else if (state == 1) { // green (1 is a comma)
@@ -680,17 +680,12 @@ void initSPI(void)
  */
 void rxProcess(void)
 {
-    if (rx_head == rx_tail) {
+    if (USART_Empty()) {
         // Nothing to do.
         return;
     }
 
-    uint8_t c = rx_buffer[rx_tail];
-    // Increase the processed index
-    rx_tail++;
-    if (rx_tail >= RX_BUFFER_LEN) {
-        rx_tail = 0;
-    }
+    uint8_t c = USART_ReadByte();
 
     USART_Transmit(c);
 

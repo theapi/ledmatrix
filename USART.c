@@ -7,7 +7,13 @@
 
 #include "USART.h"
 
+volatile unsigned char rx_buffer[RX_BUFFER_LEN];
+volatile unsigned char rx_head;
+unsigned char rx_tail; // The last buffer byte processed
 
+volatile unsigned char tx_buffer[TX_BUFFER_LEN];
+volatile unsigned char tx_head;
+volatile unsigned char tx_tail;
 
 /**
  * Interrupt when the USART receives a byte.
@@ -85,5 +91,25 @@ void USART_Transmit( unsigned char data )
     // Put data into buffer, sends the data
     UDR0 = data;
     */
+}
+
+uint8_t USART_Empty()
+{
+    if (rx_head == rx_tail) {
+        return 1;
+    }
+    return 0;
+}
+
+uint8_t USART_ReadByte()
+{
+    uint8_t c = rx_buffer[rx_tail];
+    // Increase the processed index
+    rx_tail++;
+    if (rx_tail >= RX_BUFFER_LEN) {
+        rx_tail = 0;
+    }
+
+    return c;
 }
 
