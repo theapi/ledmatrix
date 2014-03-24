@@ -173,7 +173,7 @@ main (void)
     		// reset the frame timer
     		frame_time = current_frame_duration;
 
-/*
+
     		if (source_array == 'f') {
     		    if (source_index >= SOURCE_SIZE_FONT) {
                     source_index = 0;
@@ -181,7 +181,7 @@ main (void)
     		    frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
     		    // Currently the font needs to be rotated.
     		    // @todo pre-rotate the font
-    		    frame_Rotate(270);
+    		    frame_Rotate(current_frame, 270);
     		} else {
     		    if (source_index >= SOURCE_SIZE_PATTERNS) {
     		        source_index = 0;
@@ -190,7 +190,7 @@ main (void)
     		    //source_index++;
     		}
     		source_index++;
-*/
+
     	}
 
     	if (!data_sent) {
@@ -273,7 +273,7 @@ void buildImageFromString(uint8_t image[][8][8], uint8_t str[])
             }
 
         } else if (c == ',') { // Comma denotes next colour.
-            USART_Transmit(num);
+            //USART_Transmit(num);
             if (state == 0) { // red
                 image[0][row][col] = num;
             } else if (state == 1) { // green (1 is a comma)
@@ -377,20 +377,32 @@ void rxProcess(void)
 
     uint8_t c = USART_ReadByte();
 
-    USART_Transmit(c);
+    //USART_Transmit(c);
+
+    if (c == '\n') {
+        USART_Transmit(c);
+    }
 
     if (rx_state == RX_COMMAND) {
         // reset the command arguments
         rx_args = 0;
-        // Commands are only one byte.
-        rx_cmd = c;
-        // Now get the arguments.
-        rx_state = RX_ARGS;
+
+        if (c == 'f' || c == 'p' || c == 'i') {
+            // Commands are only one byte.
+            rx_cmd = c;
+            // Now get the arguments.
+            rx_state = RX_ARGS;
+
+            USART_Transmit('*');
+            USART_Transmit(rx_cmd);
+            USART_Transmit('-');
+        }
     } else {
         // rx_state == RX_ARGS
 
         // Arguments are terminated by new line.
         if (c == '\n') {
+
             // Newline so execute the command
             // 'f' is the command for font, 'p' is for pattern
             if (rx_cmd == 'f' || rx_cmd == 'p') {
@@ -401,6 +413,7 @@ void rxProcess(void)
             }
 
             rx_state = RX_COMMAND;
+
         } else {
 
             if (rx_cmd == 'f' || rx_cmd == 'p') {
@@ -419,7 +432,7 @@ void rxProcess(void)
             } else if (rx_cmd == 'i') {
                 if (rxBuildImage(image, c)) {
                     // Acknowledge the success.
-                    USART_Transmit('i');
+                    USART_Transmit('I');
                     frame_SetColoured(current_frame_coloured, image[0], image[1], image[2]);
                     // Make it display now.
                     frame_time = 0;
@@ -484,6 +497,12 @@ uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
     }
 
     if (row > 7) {
+        // Reset statics.
+        row = 0;
+        col = 0;
+        state = 0;
+        num = 0;
+
         // finished building
         return 1;
     }
