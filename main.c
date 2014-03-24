@@ -21,9 +21,8 @@
 #define T1 1 * MILLIS_TICKS // timeout value (mSec)
 
 
-
-#define SOURCE_SIZE_PATTERN 7 // The number of items in the pattern source array.
-
+#define SOURCE_SIZE_PATTERNS 7 // The number of items in the pattern source array.
+#include "patterns.h"
 #define SOURCE_SIZE_FONT    234 // The number of items in the font source array.
 #include "font.h"
 
@@ -31,7 +30,9 @@
 Function Prototypes
 ********************************************************************************/
 
-void timerInit(void); //all the usual mcu stuff
+// Configure the timer interupt.
+void timerInit(void);
+// Configure the SPI.
 void initSPI(void);
 
 void rxProcess(void);
@@ -61,15 +62,6 @@ uint8_t source_array; // The array that is the source of data.
 uint8_t source_index; // The source array index that is currently being shown.
 
 
-uint8_t pattern[SOURCE_SIZE_PATTERN][8] PROGMEM = {
-    {0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xFF}, // |_
-    {0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xFF, 0xFF}, // |_
-    {0x80, 0x80, 0x80, 0x80, 0x80, 0xFF, 0x80, 0xFF}, // |_
-    {0x00, 0x66, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // :)
-    {0x00, 0x06, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // ;)
-    {0x00, 0x00, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // |)
-    {0x00, 0x66, 0x66, 0x00, 0x7E, 0x7E, 0x3C, 0x00}, // :O
-};
 
 
 uint8_t imgStr[] = "13,13,12,13,12,12,13,12,12,13,13,14,13,13,13,14,13,13,14,14,14,15,14,14,\
@@ -90,44 +82,6 @@ uint8_t imgStr[] = "9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,\
 9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,\
 9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,\
 9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,";
-*/
-
-
-
-/*
-uint8_t image[3][8][8] =
-{
-    { // red
-        {13, 13, 13, 13, 13, 14, 14, 15 },
-        {13, 12, 11, 11, 13, 13, 2, 2 },
-        {13, 11, 11, 12, 13, 13, 13, 13 },
-        {13, 11, 11, 12, 13, 13, 13, 13 },
-        {14, 13, 13, 13, 13, 12, 2, 2 },
-        {13, 13, 13, 13, 13, 12, 2, 2 },
-        {13, 13, 13, 13, 13, 12, 2, 2 },
-        {13, 13, 13, 13, 13, 12, 12, 12 },
-    },
-    { // green
-        {13, 12, 12, 13, 13, 13, 14, 14, },
-        {12, 4, 4, 4, 13, 13, 2, 2, },
-        {13, 4, 4, 4, 13, 13, 12, 12, },
-        {13, 4, 4, 4, 13, 13, 13, 13, },
-        {12, 13, 13, 13, 13, 12, 5, 5, },
-        {13, 13, 13, 13, 13, 12, 5, 5, },
-        {12, 13, 12, 13, 13, 12, 3, 3, },
-        {13, 13, 13, 13, 13, 12, 12, 12, },
-    },
-    { // blue
-        {12, 12, 12, 14, 13, 13, 14, 14, },
-        {12, 2, 2, 2, 13, 13, 2, 2, },
-        {13, 2, 2, 1, 13, 13, 12, 12, },
-        {12, 2, 2, 2, 13, 13, 13, 13, },
-        {13, 13, 12, 12, 13, 12, 9, 8, },
-        {12, 13, 12, 12, 12, 12, 8, 8, },
-        {12, 12, 12, 12, 13, 12, 4, 4, },
-        {12, 13, 12, 13, 13, 12, 12, 12, },
-    }
-};
 */
 
 
@@ -229,10 +183,10 @@ main (void)
     		    // @todo pre-rotate the font
     		    frame_Rotate(270);
     		} else {
-    		    if (source_index >= SOURCE_SIZE_PATTERN) {
+    		    if (source_index >= SOURCE_SIZE_PATTERNS) {
     		        source_index = 0;
     		    }
-    		    frame_SetMono_P(current_frame, pattern[source_index], pattern[source_index], pattern[source_index]);
+    		    frame_SetMono_P(current_frame, patterns[source_index], patterns[source_index], patterns[source_index]);
     		    //source_index++;
     		}
     		source_index++;
