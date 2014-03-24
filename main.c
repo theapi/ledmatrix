@@ -11,11 +11,7 @@
 #include "matrix.h"
 #include "frame.h"
 
-// From Android.h
-#define bitRead(value, bit) (((value) >> (bit)) & 0x01)
-#define bitSet(value, bit) ((value) |= (1UL << (bit)))
-#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
-#define bitWrite(value, bit, bitvalue) (bitvalue ? bitSet(value, bit) : bitClear(value, bit))
+
 
 // 32 * 0.000004 = 0.000128 so ISR gets called every 128us
 // 32 * 0.000004 * 8 = 0.001024 = about 1khz for whole matrix (NB zero based so register one less)
@@ -38,26 +34,13 @@ Function Prototypes
 void timerInit(void); //all the usual mcu stuff
 void initSPI(void);
 
-void setFrame(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8]);
-void setFrame_P(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8]);
-
-void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
-void frameBufferFlipV(void);
-void frameBufferFlipH(void);
-void frameFlipH(void);
-void frameFlipV(void);
-void frameRotate(int degrees);
-
-uint8_t bitReverse(uint8_t x);
-void swap(uint8_t *px, uint8_t *py);
 void rxProcess(void);
 void buildImageFromString(uint8_t image[][8][8], uint8_t str[]);
-//void buildImage(uint8_t image[][8][8], uint8_t str[]);
+
 
 /********************************************************************************
 Global Variables
 ********************************************************************************/
-uint8_t foo;
 
 uint8_t cycle_count; // keeps track of the number of times a complete multiplex loop has happened.
 uint8_t current_row; // Which row of the frame is currently being shown via the multiplexing.
@@ -65,7 +48,6 @@ uint8_t current_frame[3][8]; // The current frame being displayed
 uint8_t current_frame_coloured[3][8][8];
 uint8_t image[3][8][8]; // A coloured image
 
-uint8_t framebuffer[3][8]; // the current cycle of the frame, seperated into RGB (the ones and zeros to send)
 unsigned long current_frame_duration = 2000 * MILLIS_TICKS; // millis to show the current frame.
 
 // States for the usart receive processing.
@@ -78,22 +60,6 @@ uint8_t rx_args; // The argument for rx_cmd being requested by serial data.
 uint8_t source_array; // The array that is the source of data.
 uint8_t source_index; // The source array index that is currently being shown.
 
-
-
-/*
-uint8_t pattern[1][8] = {
-	{
-	  0b11111111,
-	  0b10000000,
-	  0b10000000,
-	  0b10000000,
-	  0b10000000,
-	  0b10000000,
-	  0b10000000,
-	  0b10000000,
-	}
-};
-*/
 
 uint8_t pattern[SOURCE_SIZE_PATTERN][8] PROGMEM = {
     {0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xFF}, // |_
@@ -221,25 +187,6 @@ main (void)
 	DDRB = 0xFF; // set all to output
 	PORTB = 0; // all off
 
-
-
-	/*
-	uint8_t frame[8] = {
-      0b11111111,
-      0b10000000,
-      0b10000000,
-      0b10000000,
-      0b10000000,
-      0b10000000,
-      0b10000000,
-      0b10000000,
-    };
-	//setFrame(frame, frame, frame);
-
-	 */
-
-
-
 	USART_Init();
 	initSPI();
 
@@ -253,7 +200,7 @@ main (void)
 	sei();
 
 	buildImageFromString(image, imgStr);
-    frame_setColoured(current_frame_coloured, image[0], image[1], image[2]);
+	frame_SetColoured(current_frame_coloured, image[0], image[1], image[2]);
 
 	// main loop
     while(1) {
@@ -271,25 +218,25 @@ main (void)
     	if (frame_time == 0) {
     		// reset the frame timer
     		frame_time = current_frame_duration;
-/*
 
+/*
     		if (source_array == 'f') {
     		    if (source_index >= SOURCE_SIZE_FONT) {
                     source_index = 0;
                 }
-    		    setFrame_P(font[source_index], font[source_index], font[source_index]);
+    		    frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
     		    // Currently the font needs to be rotated.
     		    // @todo pre-rotate the font
-    		    frameRotate(270);
+    		    frame_Rotate(270);
     		} else {
     		    if (source_index >= SOURCE_SIZE_PATTERN) {
     		        source_index = 0;
     		    }
-    		    setFrame_P(pattern[source_index], pattern[source_index], pattern[source_index]);
+    		    frame_SetMono_P(current_frame, pattern[source_index], pattern[source_index], pattern[source_index]);
     		    //source_index++;
     		}
     		source_index++;
-    		*/
+*/
     	}
 
     	if (!data_sent) {
@@ -403,202 +350,6 @@ void buildImageFromString(uint8_t image[][8][8], uint8_t str[])
 
         i++;
     }
-}
-
-void frameRotate(int degrees)
-{
-    uint8_t tmp[3][8];
-    uint8_t i;
-    uint8_t j;
-
-    for (i = 0; i <= 7; i++){
-        tmp[0][i] = current_frame[0][i];
-        tmp[1][i] = current_frame[1][i];
-        tmp[2][i] = current_frame[2][i];
-    }
-
-    if (degrees == 270) {
-      for (i = 0; i <= 7; i++){
-        for (j = 0; j <= 7; j++){
-            bitWrite(current_frame[0][i], j, bitRead(tmp[0][7 - j], (i)) );
-            bitWrite(current_frame[1][i], j, bitRead(tmp[1][7 - j], (i)) );
-            bitWrite(current_frame[2][i], j, bitRead(tmp[2][7 - j], (i)) );
-        }
-      }
-    }
-}
-
-/**
- * Flip the frame  on the horizontal axis.
- */
-void frameFlipH(void)
-{
-	uint8_t i;
-
-	for (i = 0; i < 3; i++) {
-		swap(&current_frame[i][0], &current_frame[i][7]);
-		swap(&current_frame[i][1], &current_frame[i][6]);
-		swap(&current_frame[i][2], &current_frame[i][5]);
-		swap(&current_frame[i][3], &current_frame[i][4]);
-	}
-
-}
-
-/**
- * Flip the frame  on the v axis.
- */
-void frameFlipV(void)
-{
-	uint8_t i;
-	for (i = 0; i < 8; i++) {
-		// red
-		current_frame[0][i] = bitReverse(current_frame[0][i]);
-        // green
-		current_frame[1][i] = bitReverse(current_frame[1][i]);
-		// blue
-		current_frame[2][i] = bitReverse(current_frame[2][i]);
-	}
-
-}
-
-/**
- * Flip the frame buffer on the horizontal axis.
- */
-void frameBufferFlipH(void)
-{
-	uint8_t i;
-
-	for (i = 0; i < 3; i++) {
-		swap(&framebuffer[i][0], &framebuffer[i][7]);
-		swap(&framebuffer[i][1], &framebuffer[i][6]);
-		swap(&framebuffer[i][2], &framebuffer[i][5]);
-		swap(&framebuffer[i][3], &framebuffer[i][4]);
-	}
-
-}
-
-void swap(uint8_t *px, uint8_t *py)
-{
-	uint8_t temp;
-
-	temp = *px;
-	*px = *py;
-	*py = temp;
-}
-
-/**
- * Flip the frame buffer on the vertical axis.
- */
-void frameBufferFlipV(void)
-{
-	uint8_t i;
-	for (i = 0; i < 8; i++) {
-		// red
-		framebuffer[0][i] = bitReverse(framebuffer[0][i]);
-        // green
-		framebuffer[1][i] = bitReverse(framebuffer[1][i]);
-		// blue
-		framebuffer[2][i] = bitReverse(framebuffer[2][i]);
-	}
-
-}
-
-/**
- * Sets the ones & zeros to be sent to the display
- */
-void setFrameBuffer(uint8_t red[8], uint8_t green[8], uint8_t blue[8])
-{
-  uint8_t i;
-  for (i = 0; i < 8; i++) {
-    framebuffer[0][i] = red[i];
-    framebuffer[1][i] = green[i];
-    framebuffer[2][i] = blue[i];
-  }
-}
-
-
-
-/**
- * Stores the data for the frames so the bytes are hex values of the brightness.
- */
-void setFrame(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8])
-{
-  uint8_t i;
-  for (i = 0; i < 8; i++) {
-    current_frame[0][i] = red[i];
-    current_frame[1][i] = green[i];
-    current_frame[2][i] = blue[i];
-  }
-}
-
-/**
- * Stores the data from PROGMEM for the frames so the bytes are hex values of the brightness.
- */
-void setFrame_P(const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8])
-{
-  uint8_t i;
-  for (i = 0; i < 8; i++) {
-    current_frame[0][i] = pgm_read_byte(red + i);
-    current_frame[1][i] = pgm_read_byte(green + i);
-    current_frame[2][i] = pgm_read_byte(blue + i);
-  }
-}
-
-/**
- * Make least significant bit highest etc.
- *
- * 11001100 -> 00110011
- */
-uint8_t bitReverse(uint8_t x)
-{
-/*
-	uint8_t i;
-	uint8_t reversed = 0;
-
-	for (i = 0; i < 8; i++)  {
-		reversed >>= 1;
-		reversed |= (x & (1 << 7));
-		x <<= 1;
-	}
-
-	return reversed;
-*/
-
-	/*
-
-    The following is faster than a loop, taken from from USI_UART.c AVR307.
-
-	So I can see the bitwise operators in action:
-
-	For x = 11001100...
-
-	x = ((x >> 1) & 0x55) | ((x << 1) & 0xaa);
-	x = ((x >> 1) & 01010101) | ((x << 1) & 10101010);
-	x = (01100110 & 01010101) | (10011000 & 10101010);
-    x = 01000100 | 10001000;
-    x = 11001100;
-
-
-	x = ((x >> 2) & 0x33) | ((x << 2) & 0xcc);
-	x = ((x >> 2) & 00110011) | ((x << 2) & 11001100);
-	x = (00110011 & 00110011) | (00110000 & 11001100);
-    x = 00110011 | 00000000;
-    x = 00110011;
-
-
-    x = ((x >> 4) & 0x0f) | ((x << 4) & 0xf0);
-	x = ((x >> 4) & 00001111) | ((x << 4) & 11110000);
-	x = (00000011 & 00001111) | (00110000 & 11110000);
-    x = 00000011 | 00110000;
-    x = 00110011;
-
-	*/
-
-	// from USI_UART.c AVR307
-    x = ((x >> 1) & 0x55) | ((x << 1) & 0xaa);
-    x = ((x >> 2) & 0x33) | ((x << 2) & 0xcc);
-    x = ((x >> 4) & 0x0f) | ((x << 4) & 0xf0);
-    return x;
 }
 
 void timerInit(void)
