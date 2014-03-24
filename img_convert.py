@@ -13,9 +13,10 @@ size = 8, 8
 
 im_orig = Image.open("in.jpg")
 im = im_orig.resize(size, Image.NEAREST)
+im = im.rotate(90)
 #im.convert(mode='P', dither=Image.NONE, colors=16, palette=Image.ADAPTIVE)
 im.convert("P", palette=Image.ADAPTIVE, colors=256)
-#im.save("out.gif", "GIF")
+im.save("out.gif", "GIF")
 
 
 
@@ -24,8 +25,9 @@ im.convert("P", palette=Image.ADAPTIVE, colors=256)
 bufRed = "{"
 bufGreen = "{"
 bufBlue = "{"
+buf = ""
 for x in range(8):
-    buf = ""
+    #buf = ""
     for y in range(8):
         red, green, blue = im.getpixel((x,y))
         # @todo http://docs.python.org/2.7/library/functions.html#bytearray
@@ -38,13 +40,13 @@ for x in range(8):
         #cpixel = pixels[x, y]
         #print cpixel
 
-    buf += "\\"
-    print buf
+    #buf += "\\"
+    #print buf
     #bufRed += "},\n{"
     #bufGreen += "},\n{"
     #bufBlue += "},\n{"
 
-#print buf
+print buf
 #print bufRed
 #print
 #print bufGreen
