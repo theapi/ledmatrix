@@ -37,7 +37,7 @@ void initSPI(void);
 
 void rxProcess(void);
 void buildImageFromString(uint8_t image[][8][8], uint8_t str[]);
-
+uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c);
 
 /********************************************************************************
 Global Variables
@@ -392,7 +392,7 @@ void rxProcess(void)
         // Arguments are terminated by new line.
         if (c == '\n') {
             // Newline so execute the command
-            // Only one command for now: 'f' is the command for font
+            // 'f' is the command for font, 'p' is for pattern
             if (rx_cmd == 'f' || rx_cmd == 'p') {
                 source_array = rx_cmd;
                 source_index = rx_args;
@@ -416,9 +416,78 @@ void rxProcess(void)
                         rx_args = c - 0x30;
                     }
                 }
+            } else if (rx_cmd == 'i') {
+                if (rxBuildImage(image, c)) {
+                    // Acknowledge the success.
+                    USART_Transmit('i');
+                    frame_SetColoured(current_frame_coloured, image[0], image[1], image[2]);
+                    // Make it display now.
+                    frame_time = 0;
+                    rx_state = RX_COMMAND;
+                }
+
             }
         }
     }
 
 }
 
+/**
+ * State machine for building an image from serial input.
+ *
+ */
+uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
+{
+    static uint8_t state = 0;
+    static uint8_t col = 0;
+    static uint8_t row = 0;
+    static uint8_t num = 0;
+
+
+    //USART_Transmit(c);
+
+    // Build the number.
+    if (c > 0x2F && c < 0x3A) {
+        if (num > 0) {
+            // Expecting decimal numbers like 24,
+            // so for each new argument multiply by ten (shift left in decimal).
+            num *= 10;
+            num += c - 0x30;
+        } else {
+            num = c - 0x30;
+        }
+
+    } else if (c == ',') { // Comma denotes next colour.
+        USART_Transmit(num);
+        if (state == 0) { // red
+            image[0][row][col] = num;
+        } else if (state == 1) { // green (1 is a comma)
+            image[1][row][col] = num;
+        } else if (state == 2) { // blue (3 is a comma)
+            image[2][row][col] = num;
+        }
+        // Next colour
+        num = 0;
+        state++;
+    }
+
+    // r,g,b,
+    if (state > 2) {
+        state = 0;
+        // Start building next pixel.
+        col++;
+    }
+
+    if (col > 7) {
+        col = 0;
+        row++;
+    }
+
+    if (row > 7) {
+        // finished building
+        return 1;
+    }
+
+    // Need more chars to finish the build
+    return 0;
+}
