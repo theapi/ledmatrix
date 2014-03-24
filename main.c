@@ -63,7 +63,7 @@ uint8_t source_index; // The source array index that is currently being shown.
 
 
 
-
+/*
 uint8_t imgStr[] = "13,13,12,13,12,12,13,12,12,13,13,14,13,13,13,14,13,13,14,14,14,15,14,14,\
 13,12,12,12,4,2,11,4,2,11,4,2,13,13,13,13,13,13,15,14,8,15,14,8,\
 13,13,13,11,4,2,11,4,2,12,4,1,13,13,13,13,13,13,13,12,12,13,12,12,\
@@ -72,7 +72,7 @@ uint8_t imgStr[] = "13,13,12,13,12,12,13,12,12,13,13,14,13,13,13,14,13,13,14,14,
 13,13,12,13,13,13,13,13,12,13,13,12,13,13,12,12,12,12,2,5,8,2,5,8,\
 13,12,12,13,13,12,13,12,12,13,13,12,13,13,13,12,12,12,2,3,4,2,3,4,\
 13,13,12,13,13,13,13,13,12,13,13,13,13,13,13,12,12,12,12,12,12,12,12,12,";
-
+*/
 /*
 uint8_t imgStr[] = "9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,\
 9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,\
@@ -153,8 +153,9 @@ main (void)
 	// crank up the ISRs
 	sei();
 
-	buildImageFromString(image, imgStr);
-	frame_SetColoured(current_frame_coloured, image[0], image[1], image[2]);
+	//buildImageFromString(image, imgStr);
+	//frame_SetColoured(current_frame_coloured, image[0], image[1], image[2]);
+	frame_SetMono_P(current_frame, patterns[0], patterns[0], patterns[0]);
 
 	// main loop
     while(1) {
@@ -182,7 +183,7 @@ main (void)
     		    // Currently the font needs to be rotated.
     		    // @todo pre-rotate the font
     		    frame_Rotate(current_frame, 270);
-    		} else {
+    		} else if (source_array == 'p') {
     		    if (source_index >= SOURCE_SIZE_PATTERNS) {
     		        source_index = 0;
     		    }
@@ -195,32 +196,35 @@ main (void)
 
     	if (!data_sent) {
 
-    	    // current_frame_coloured
-    	    uint8_t i;
-    	    uint8_t r = 0;
-    	    uint8_t g = 0;
-    	    uint8_t b = 0;
-    	    for (i=0; i<8; i++) {
-    	        if (current_frame_coloured[0][current_row][i] <= cycle_count) {
-    	            r |= (1 << i);
-    	        }
-    	        if (current_frame_coloured[1][current_row][i] <= cycle_count) {
-                    g |= (1 << i);
+    	    if (source_array == 'i') {
+                // current_frame_coloured
+                uint8_t i;
+                uint8_t r = 0;
+                uint8_t g = 0;
+                uint8_t b = 0;
+                for (i=0; i<8; i++) {
+                    if (current_frame_coloured[0][current_row][i] <= cycle_count) {
+                        r |= (1 << i);
+                    }
+                    if (current_frame_coloured[1][current_row][i] <= cycle_count) {
+                        g |= (1 << i);
+                    }
+                    if (current_frame_coloured[2][current_row][i] <= cycle_count) {
+                        b |= (1 << i);
+                    }
                 }
-    	        if (current_frame_coloured[2][current_row][i] <= cycle_count) {
-                    b |= (1 << i);
-                }
-    	    }
 
-    	    matrix_sendLine(r,g,b);
-    	    /*
-            // Send the next line ready to be latched in the ISR
-            matrix_sendLine(
-                ~current_frame[0][current_row], // Red
-                ~current_frame[1][current_row], // Green
-                ~current_frame[2][current_row]  // Blue
-            );
-             */
+                matrix_sendLine(r,g,b);
+    	    } else { // temporary kludge to show mono frames
+
+                // Send the next line ready to be latched in the ISR
+                matrix_sendLine(
+                    ~current_frame[0][current_row], // Red
+                    ~current_frame[1][current_row], // Green
+                    ~current_frame[2][current_row]  // Blue
+                );
+
+    	    }
 
     	    // Prepare for the next row.
     	    ++current_row;
@@ -246,7 +250,7 @@ main (void)
 /********************************************************************************
 Functions
 ********************************************************************************/
-
+/*
 void buildImageFromString(uint8_t image[][8][8], uint8_t str[])
 {
     int i = 0; // index of the string array
@@ -305,6 +309,7 @@ void buildImageFromString(uint8_t image[][8][8], uint8_t str[])
         i++;
     }
 }
+*/
 
 void timerInit(void)
 {
@@ -428,11 +433,13 @@ void rxProcess(void)
                     } else {
                         rx_args = c - 0x30;
                     }
+                    USART_Transmit(c);
                 }
             } else if (rx_cmd == 'i') {
                 if (rxBuildImage(image, c)) {
                     // Acknowledge the success.
                     USART_Transmit('I');
+                    source_array = 'i';
                     frame_SetColoured(current_frame_coloured, image[0], image[1], image[2]);
                     // Make it display now.
                     frame_time = 0;
