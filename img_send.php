@@ -1,5 +1,6 @@
 <?php
 
+
 $file = $argv[1];
 if (!file_exists($file)) {
     echo "$file does not exist\n";
@@ -12,19 +13,37 @@ cs8 = 8 bit characters
 raw = no messing with the data, like adding newlines
 57600 = BAUD
 */
-exec('stty -F /dev/ttyUSB0 cs8 -cstopb raw 57600');
-$serial = fopen("/dev/ttyUSB0", "w+");
+$tty = '/dev/ttyUSB1';
+exec("stty -F $tty cs8 -cstopb raw 57600");
+$serial = fopen($tty, "w+");
 if( !$serial) {
     echo "Error opening serial\n";
     exit(1);
 }
 
+//fwrite($serial, "p2\n", 3);
+//echo fread($serial, 1);
 
-$contents = file_get_contents($file);
+$im = new Imagick($file);
+$im->resizeImage (8, 8, Imagick::FILTER_LANCZOS, 0);
+//$im->writeImage('test.png');
+// NB cannot use exportImagePixels as Imagick::PIXEL_CHAR is not an unsigned char as expected.
+//$pixels = $im->exportImagePixels(0, 0, 8, 8, "RGB", Imagick::PIXEL_CHAR);
 
-//@todo Convert the image to an rgb string.
-$rgb = '12,4,16'; // the image contents converted to the required rgb string.
-fwrite($serial, $rgb, strlen($rgb));
+fwrite($serial, 'i');
+for ($x=0; $x<8; ++$x) {
+    for ($y=0; $y<8; ++$y) {
+        $pixel = $im->getImagePixelColor($x, $y);
+        $colors = $pixel->getColor();
+        foreach ($colors as $k => $v) {
+            if ($k != 'a') {
+                echo round($v/16) . ',';
+                fwrite($serial, round($v/16) . ',');
+            }
+        }
+    }
+}
+$im->clear();
 
-
+echo "\n";
 fclose($serial);
