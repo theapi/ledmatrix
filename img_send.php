@@ -1,10 +1,25 @@
 <?php
 
 
+if (empty($argv[1])) {
+    echo "Usage php img_send.php path/to/file [tty]\n";
+    exit(1);
+}
+
 $file = $argv[1];
 if (!file_exists($file)) {
     echo "$file does not exist\n";
     exit(1);
+}
+
+if (empty($argv[2])) {
+    $tty = '/dev/ttyUSB0';
+} else {
+    $tty = $argv[2];
+}
+
+if (is_dir($file)) {
+    //@todo send a whole directory...
 }
 
 /*
@@ -13,7 +28,6 @@ cs8 = 8 bit characters
 raw = no messing with the data, like adding newlines
 57600 = BAUD
 */
-$tty = '/dev/ttyUSB1';
 exec("stty -F $tty cs8 -cstopb raw 57600");
 $serial = fopen($tty, "w+");
 if( !$serial) {
