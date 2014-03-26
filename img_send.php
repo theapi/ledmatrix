@@ -19,7 +19,17 @@ if (empty($argv[2])) {
 }
 
 if (is_dir($file)) {
-    //@todo send a whole directory...
+    $files = array();
+    $d = dir($file);
+    while (false !== ($entry = $d->read())) {
+       //echo $d->path . '/' . $entry."\n";
+       if (is_file($d->path . '/' . $entry)) {
+           $files[] = $d->path . '/' . $entry;
+       }
+    }
+    $d->close();
+} else {
+    $files = array($file);
 }
 
 /*
@@ -38,26 +48,29 @@ if( !$serial) {
 //fwrite($serial, "p2\n", 3);
 //echo fread($serial, 1);
 
-$im = new Imagick($file);
-$im->resizeImage (8, 8, Imagick::FILTER_LANCZOS, 0);
-//$im->writeImage('test.png');
-// NB cannot use exportImagePixels as Imagick::PIXEL_CHAR is not an unsigned char as expected.
-//$pixels = $im->exportImagePixels(0, 0, 8, 8, "RGB", Imagick::PIXEL_CHAR);
+foreach($files as $file) {
 
-fwrite($serial, 'i');
-for ($x=0; $x<8; ++$x) {
-    for ($y=0; $y<8; ++$y) {
-        $pixel = $im->getImagePixelColor($x, $y);
-        $colors = $pixel->getColor();
-        foreach ($colors as $k => $v) {
-            if ($k != 'a') {
-                echo round($v/16) . ',';
-                fwrite($serial, round($v/16) . ',');
+    $im = new Imagick($file);
+    $im->resizeImage (8, 8, Imagick::FILTER_LANCZOS, 0);
+    //$im->writeImage('test.png');
+    // NB cannot use exportImagePixels as Imagick::PIXEL_CHAR is not an unsigned char as expected.
+    //$pixels = $im->exportImagePixels(0, 0, 8, 8, "RGB", Imagick::PIXEL_CHAR);
+
+    fwrite($serial, 'i');
+    for ($x=0; $x<8; ++$x) {
+        for ($y=0; $y<8; ++$y) {
+            $pixel = $im->getImagePixelColor($x, $y);
+            $colors = $pixel->getColor();
+            foreach ($colors as $k => $v) {
+                if ($k != 'a') {
+                    //echo round($v/16) . ',';
+                    fwrite($serial, round($v/16) . ',');
+                }
             }
         }
     }
-}
-$im->clear();
+    $im->clear();
 
-echo "\n";
+    echo "$file\n";
+}
 fclose($serial);
