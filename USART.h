@@ -9,7 +9,7 @@
 #define USART_H_
 
 
-#define BAUD 57600
+#define BAUD 115200
 
 #include <util/setbaud.h>
 #include <avr/interrupt.h>

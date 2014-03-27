@@ -2,7 +2,7 @@
 
 
 if (empty($argv[1])) {
-    echo "Usage php img_send.php path/to/file [tty]\n";
+    echo "Usage php img_send.php path/to/file [tty] [baud]\n";
     exit(1);
 }
 
@@ -18,6 +18,12 @@ if (empty($argv[2])) {
     $tty = $argv[2];
 }
 
+if (empty($argv[3])) {
+    $baud = '115200';
+} else {
+    $baud = $argv[3];
+}
+
 if (is_dir($file)) {
     $files = array();
     $d = dir($file);
@@ -28,6 +34,7 @@ if (is_dir($file)) {
        }
     }
     $d->close();
+    sort($files);
 } else {
     $files = array($file);
 }
@@ -38,7 +45,7 @@ cs8 = 8 bit characters
 raw = no messing with the data, like adding newlines
 57600 = BAUD
 */
-exec("stty -F $tty cs8 -cstopb raw 57600");
+exec("stty -F $tty cs8 -cstopb raw $baud");
 $serial = fopen($tty, "w+");
 if( !$serial) {
     echo "Error opening serial\n";
@@ -72,5 +79,6 @@ foreach($files as $file) {
     $im->clear();
 
     echo "$file\n";
+    usleep(100000);
 }
 fclose($serial);
