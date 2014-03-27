@@ -21,7 +21,7 @@
 #define T1 1 * MILLIS_TICKS // timeout value (mSec)
 
 
-#define SOURCE_SIZE_PATTERNS 7 // The number of items in the pattern source array.
+#define SOURCE_SIZE_PATTERNS 4 // The number of items in the pattern source array.
 #include "patterns.h"
 #define SOURCE_SIZE_FONT    234 // The number of items in the font source array.
 #include "font.h"
@@ -36,7 +36,7 @@ void timerInit(void);
 void initSPI(void);
 
 void rxProcess(void);
-void buildImageFromString(uint8_t image[][8][8], uint8_t str[]);
+//void buildImageFromString(uint8_t image[][8][8], uint8_t str[]);
 uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c);
 
 /********************************************************************************
@@ -60,29 +60,6 @@ uint8_t rx_args; // The argument for rx_cmd being requested by serial data.
 
 uint8_t source_array; // The array that is the source of data.
 uint8_t source_index; // The source array index that is currently being shown.
-
-
-
-/*
-uint8_t imgStr[] = "13,13,12,13,12,12,13,12,12,13,13,14,13,13,13,14,13,13,14,14,14,15,14,14,\
-13,12,12,12,4,2,11,4,2,11,4,2,13,13,13,13,13,13,15,14,8,15,14,8,\
-13,13,13,11,4,2,11,4,2,12,4,1,13,13,13,13,13,13,13,12,12,13,12,12,\
-13,13,12,11,4,2,11,4,2,12,4,2,13,13,13,13,13,13,13,13,13,13,13,13,\
-14,12,13,13,13,13,13,13,12,13,13,12,13,13,13,12,12,12,2,5,9,2,5,8,\
-13,13,12,13,13,13,13,13,12,13,13,12,13,13,12,12,12,12,2,5,8,2,5,8,\
-13,12,12,13,13,12,13,12,12,13,13,12,13,13,13,12,12,12,2,3,4,2,3,4,\
-13,13,12,13,13,13,13,13,12,13,13,13,13,13,13,12,12,12,12,12,12,12,12,12,";
-*/
-/*
-uint8_t imgStr[] = "9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,\
-9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,\
-9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,\
-9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,\
-9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,\
-9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,\
-9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,\
-9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,";
-*/
 
 
 volatile unsigned int time1;
@@ -155,6 +132,7 @@ main (void)
 
 	//buildImageFromString(image, imgStr);
 	//frame_SetColoured(current_frame_coloured, image[0], image[1], image[2]);
+	source_array = 'p';
 	frame_SetMono_P(current_frame, patterns[0], patterns[0], patterns[0]);
 
 	// main loop
@@ -188,9 +166,9 @@ main (void)
     		        source_index = 0;
     		    }
     		    frame_SetMono_P(current_frame, patterns[source_index], patterns[source_index], patterns[source_index]);
-    		    //source_index++;
+    		    source_index++;
     		}
-    		source_index++;
+    		//source_index++;
 
     	}
 
@@ -392,7 +370,7 @@ void rxProcess(void)
         // reset the command arguments
         rx_args = 0;
 
-        if (c == 'f' || c == 'p' || c == 'i') {
+        if (c == 'f' || c == 'p' || c == 'i' || c == 'c') {
             // Commands are only one byte.
             rx_cmd = c;
             // Now get the arguments.
@@ -409,11 +387,17 @@ void rxProcess(void)
         if (c == '\n') {
 
             // Newline so execute the command
-            // 'f' is the command for font, 'p' is for pattern
+            // 'f' is the command for font,
+            // 'p' is for pattern,
+            // 'c' is for display character
             if (rx_cmd == 'f' || rx_cmd == 'p') {
                 source_array = rx_cmd;
                 source_index = rx_args;
                 // Make it display now.
+                frame_time = 0;
+            } else if (rx_cmd == 'c') {
+                source_array = 'f';
+                source_index = rx_args;
                 frame_time = 0;
             }
 
@@ -433,6 +417,11 @@ void rxProcess(void)
                     } else {
                         rx_args = c - 0x30;
                     }
+                    USART_Transmit(c);
+                }
+            } else if (rx_cmd == 'c') {
+                if (c > 0x20 && c < 0xff) {
+                    rx_args = c - 32;
                     USART_Transmit(c);
                 }
             } else if (rx_cmd == 'i') {
