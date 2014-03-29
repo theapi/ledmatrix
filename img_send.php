@@ -70,7 +70,7 @@ foreach($files as $file) {
             $colors = $pixel->getColor();
             foreach ($colors as $k => $v) {
                 if ($k != 'a') {
-                    echo round($v/16) . ',';
+                    //echo round($v/16) . ',';
                     fwrite($serial, round($v/16) . ',');
                 }
             }
@@ -79,6 +79,6 @@ foreach($files as $file) {
     $im->clear();
 
     echo "$file\n";
-    usleep(100000);
+    //usleep(100000);
 }
 fclose($serial);
