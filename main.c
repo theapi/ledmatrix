@@ -130,10 +130,22 @@ main (void)
 	// crank up the ISRs
 	sei();
 
+	uint8_t frame[8] = {
+       0b10000000,
+       0b00000000,
+       0b00000000,
+       0b00000000,
+       0b00000000,
+       0b00000000,
+       0b00000000,
+       0b00000000,
+    };
+	frame_SetMono(current_frame, frame, frame, frame);
+
 	//buildImageFromString(image, imgStr);
 	//frame_SetColoured(current_frame_coloured, image[0], image[1], image[2]);
-	source_array = 'p';
-	frame_SetMono_P(current_frame, patterns[0], patterns[0], patterns[0]);
+	//source_array = 'p';
+	//frame_SetMono_P(current_frame, patterns[0], patterns[0], patterns[0]);
 
 	// main loop
     while(1) {
@@ -175,31 +187,35 @@ main (void)
     	if (!data_sent) {
 
     	    if (source_array == 'i') {
+
                 // current_frame_coloured
-                uint8_t i;
+                uint8_t col;
+                uint8_t bit = 7;
                 uint8_t r = 0;
                 uint8_t g = 0;
                 uint8_t b = 0;
-                for (i=0; i<8; i++) {
-                    if (current_frame_coloured[0][current_row][i] <= cycle_count) {
-                        r |= (1 << i);
+                for (col=0; col<8; col++) {
+                    if (current_frame_coloured[0][current_row][col] <= cycle_count) {
+                        r |= (1 << bit);
                     }
-                    if (current_frame_coloured[1][current_row][i] <= cycle_count) {
-                        g |= (1 << i);
+                    if (current_frame_coloured[1][current_row][col] <= cycle_count) {
+                        g |= (1 << bit);
                     }
-                    if (current_frame_coloured[2][current_row][i] <= cycle_count) {
-                        b |= (1 << i);
+                    if (current_frame_coloured[2][current_row][col] <= cycle_count) {
+                        b |= (1 << bit);
                     }
+                    --bit;
                 }
 
                 matrix_sendLine(r,g,b);
+
     	    } else { // temporary kludge to show mono frames
 
                 // Send the next line ready to be latched in the ISR
                 matrix_sendLine(
-                    ~current_frame[0][current_row], // Red
-                    ~current_frame[1][current_row], // Green
-                    ~current_frame[2][current_row]  // Blue
+                    current_frame[0][current_row], // Red
+                    current_frame[1][current_row], // Green
+                    current_frame[2][current_row]  // Blue
                 );
 
     	    }
@@ -228,66 +244,6 @@ main (void)
 /********************************************************************************
 Functions
 ********************************************************************************/
-/*
-void buildImageFromString(uint8_t image[][8][8], uint8_t str[])
-{
-    int i = 0; // index of the string array
-    uint8_t state = 0;
-    uint8_t col = 0;
-    uint8_t row = 0;
-    uint8_t num = 0;
-    uint8_t c = 0;
-
-    while(str[i] != 0) {
-        c = str[i];
-        //USART_Transmit(c);
-
-        // Only interested in numbers as they make up the index of the array to use.
-        // ASCII hex values 0x30 to 0x30 are decimal 0 to 9
-        if (c > 0x2F && c < 0x3A) {
-            if (num > 0) {
-                // Expecting decimal numbers like 24,
-                // so for each new argument multiply by ten (shift left in decimal).
-                num *= 10;
-                num += c - 0x30;
-            } else {
-                num = c - 0x30;
-            }
-
-        } else if (c == ',') { // Comma denotes next colour.
-            //USART_Transmit(num);
-            if (state == 0) { // red
-                image[0][row][col] = num;
-            } else if (state == 1) { // green (1 is a comma)
-                image[1][row][col] = num;
-            } else if (state == 2) { // blue (3 is a comma)
-                image[2][row][col] = num;
-            }
-            // Next colour
-            num = 0;
-            state++;
-        }
-
-        // r,g,b,
-        if (state > 2) {
-            state = 0;
-            // Start building next pixel.
-            col++;
-        }
-
-        if (col > 7) {
-            col = 0;
-            row++;
-        }
-
-        if (row > 7) {
-            return;
-        }
-
-        i++;
-    }
-}
-*/
 
 void timerInit(void)
 {
@@ -312,7 +268,7 @@ void timerInit(void)
 	// 16MHz/64=250kHz so precision of 0.000004 = 4us
 	// calculation to show why 64 is required the prescaler:
 	// 1 / (16000000 / 64 / 250) = 0.001 = 1ms
-	TCCR0B = ((1 << CS10) | (1 << CS11)); // (0b00000011)(3) clock prescalar to 64
+	TCCR0B = ((1 << CS01) | (1 << CS00)); // (0b00000011)(3) clock prescalar to 64
 
 	// Timer initialization
     time1 = T1;
@@ -425,6 +381,7 @@ void rxProcess(void)
                     USART_Transmit(c);
                 }
             } else if (rx_cmd == 'i') {
+                //USART_Transmit(c);
                 if (rxBuildImage(image, c)) {
                     // Acknowledge the success.
                     USART_Transmit('I');
@@ -452,9 +409,6 @@ uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
     static uint8_t row = 0;
     static uint8_t num = 0;
 
-
-    //USART_Transmit(c);
-
     // Build the number.
     if (c > 0x2F && c < 0x3A) {
         if (num > 0) {
@@ -467,7 +421,7 @@ uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
         }
 
     } else if (c == ',') { // Comma denotes next colour.
-        USART_Transmit(num);
+        //USART_Transmit(num);
         if (state == 0) { // red
             image[0][row][col] = num;
         } else if (state == 1) { // green (1 is a comma)

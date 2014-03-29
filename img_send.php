@@ -64,13 +64,13 @@ foreach($files as $file) {
     //$pixels = $im->exportImagePixels(0, 0, 8, 8, "RGB", Imagick::PIXEL_CHAR);
 
     fwrite($serial, 'i');
-    for ($x=0; $x<8; ++$x) {
-        for ($y=0; $y<8; ++$y) {
-            $pixel = $im->getImagePixelColor($x, $y);
+    for ($row=0; $row<8; ++$row) {
+        for ($col=0; $col<8; ++$col) {
+            $pixel = $im->getImagePixelColor($col, $row);
             $colors = $pixel->getColor();
             foreach ($colors as $k => $v) {
                 if ($k != 'a') {
-                    //echo round($v/16) . ',';
+                    echo round($v/16) . ',';
                     fwrite($serial, round($v/16) . ',');
                 }
             }

@@ -6,23 +6,23 @@
  */
 
 #include "frame.h"
-
+#include "USART.h"
 
 /**
  * ...
  */
 void frame_SetColoured(uint8_t frame[3][8][8], uint8_t red[8][8], uint8_t green[8][8], uint8_t blue[8][8])
 {
-  uint8_t i;
-  uint8_t j;
+    uint8_t row;
+    uint8_t col;
 
-  for (i = 0; i < 8; i++) {
-      for (j = 0; j < 8; j++) {
-        frame[0][i][j] = red[i][j];
-        frame[1][i][j] = green[i][j];
-        frame[2][i][j] = blue[i][j];
-      }
-  }
+    for (row = 0; row < 8; row++) {
+        for (col = 0; col < 8; col++) {
+            frame[0][row][col] = red[row][col];
+            frame[1][row][col] = green[row][col];
+            frame[2][row][col] = blue[row][col];
+        }
+    }
 }
 
 /**
