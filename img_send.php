@@ -70,8 +70,11 @@ foreach($files as $file) {
             $colors = $pixel->getColor();
             foreach ($colors as $k => $v) {
                 if ($k != 'a') {
+                    // Send binary bytes not strings (faster).
+                    $byte = pack('C', round($v/16));
+                    fwrite($serial, $byte . ',');
                     //echo round($v/16) . ',';
-                    fwrite($serial, round($v/16) . ',');
+                    //fwrite($serial, round($v/16) . ',');
                 }
             }
         }

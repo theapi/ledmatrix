@@ -409,6 +409,7 @@ uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
     static uint8_t row = 0;
     static uint8_t num = 0;
 
+    /*
     // Build the number.
     if (c > 0x2F && c < 0x3A) {
         if (num > 0) {
@@ -420,7 +421,10 @@ uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
             num = c - 0x30;
         }
 
-    } else if (c == ',') { // Comma denotes next colour.
+    }
+    */
+
+    if (c == ',') { // Comma denotes next colour.
         //USART_Transmit(num);
         if (state == 0) { // red
             image[0][row][col] = num;
@@ -432,6 +436,8 @@ uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
         // Next colour
         num = 0;
         state++;
+    } else {
+        num = c;
     }
 
     // r,g,b,
