@@ -79,6 +79,7 @@ foreach($files as $file) {
             }
         }
     }
+    //fwrite($serial, -1);
     $im->clear();
 
     echo "$file\n";

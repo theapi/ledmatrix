@@ -337,8 +337,8 @@ void rxProcess(void)
     } else {
         // rx_state == RX_ARGS
 
-        // Arguments are terminated by new line.
-        if (c == '\n') {
+        // Arguments are terminated by new line, unless sending image data.
+        if (rx_cmd != 'i' && c == '\n') {
 
             // Newline so execute the command
             // 'f' is the command for font,
@@ -407,8 +407,9 @@ uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
     static uint8_t row = 0;
     static uint8_t num = 0;
 
-    /*
+
     // Build the number.
+    /*
     if (c > 0x2F && c < 0x3A) {
         if (num > 0) {
             // Expecting decimal numbers like 24,
@@ -420,7 +421,7 @@ uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
         }
 
     }
-    */
+*/
 
     if (c == ',') { // Comma denotes next colour.
         //USART_Transmit(num);
@@ -438,6 +439,7 @@ uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
         num = c;
     }
 
+
     // r,g,b,
     if (state > 2) {
         state = 0;
@@ -450,7 +452,7 @@ uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
         row++;
     }
 
-    if (row > 7) {
+    if (row > 7 || c == -1) {
         // Reset statics.
         row = 0;
         col = 0;
