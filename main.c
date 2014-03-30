@@ -399,6 +399,8 @@ void rxProcess(void)
 /**
  * State machine for building an image from serial input.
  *
+ * Expects bytes (not ascii characters) RGBRGBRG...
+ *
  */
 uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
 {
@@ -422,7 +424,7 @@ uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
 
     }
 */
-
+/*
     if (c == ',') { // Comma denotes next colour.
         //USART_Transmit(num);
         if (state == 0) { // red
@@ -438,7 +440,18 @@ uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
     } else {
         num = c;
     }
+*/
 
+    num = c;
+    if (state == 0) { // red
+        image[0][row][col] = num;
+    } else if (state == 1) { // green
+        image[1][row][col] = num;
+    } else if (state == 2) { // blue
+        image[2][row][col] = num;
+    }
+    // Next colour
+    state++;
 
     // r,g,b,
     if (state > 2) {
@@ -463,6 +476,6 @@ uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
         return 1;
     }
 
-    // Need more chars to finish the build
+    // Need more to finish the build
     return 0;
 }

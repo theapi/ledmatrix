@@ -72,7 +72,7 @@ foreach($files as $file) {
                 if ($k != 'a') {
                     // Send binary bytes not strings (faster).
                     $byte = pack('C', round($v/16));
-                    fwrite($serial, $byte . ',');
+                    fwrite($serial, $byte);
                     //echo round($v/16) . ',';
                     //fwrite($serial, round($v/16) . ',');
                 }
