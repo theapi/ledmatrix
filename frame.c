@@ -6,7 +6,6 @@
  */
 
 #include "frame.h"
-#include "USART.h"
 
 /**
  * ...
@@ -32,9 +31,9 @@ void frame_SetMono(uint8_t frame[0][8], const uint8_t red[8], const uint8_t gree
 {
   uint8_t i;
   for (i = 0; i < 8; i++) {
-      frame[0][i] = red[i];
-      frame[1][i] = green[i];
-      frame[2][i] = blue[i];
+      frame[0][i] = ~red[i];
+      frame[1][i] = ~green[i];
+      frame[2][i] = ~blue[i];
   }
 }
 
@@ -45,9 +44,9 @@ void frame_SetMono_P(uint8_t frame[0][8], const uint8_t red[8], const uint8_t gr
 {
   uint8_t i;
   for (i = 0; i < 8; i++) {
-      frame[0][i] = pgm_read_byte(red + i);
-      frame[1][i] = pgm_read_byte(green + i);
-      frame[2][i] = pgm_read_byte(blue + i);
+      frame[0][i] = ~pgm_read_byte(red + i);
+      frame[1][i] = ~pgm_read_byte(green + i);
+      frame[2][i] = ~pgm_read_byte(blue + i);
   }
 }
 
