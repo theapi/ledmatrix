@@ -23,7 +23,7 @@
 
 #define SOURCE_SIZE_PATTERNS 4 // The number of items in the pattern source array.
 #include "patterns.h"
-#define SOURCE_SIZE_FONT    234 // The number of items in the font source array.
+
 #include "font.h"
 
 /********************************************************************************
@@ -170,9 +170,7 @@ main (void)
                     source_index = 0;
                 }
     		    frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
-    		    // Currently the font needs to be rotated.
-    		    // @todo pre-rotate the font
-    		    frame_Rotate(current_frame, 270);
+
     		} else if (source_array == 'p') {
     		    if (source_index >= SOURCE_SIZE_PATTERNS) {
     		        source_index = 0;
