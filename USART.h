@@ -10,6 +10,7 @@
 
 
 #define BAUD 115200
+#define BAUD_TOL 3 // Allow for the 2.1% error of 115200
 
 #include <util/setbaud.h>
 #include <avr/interrupt.h>

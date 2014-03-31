@@ -5,26 +5,20 @@
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 
-
-
 #include "USART.h"
 #include "matrix.h"
 #include "frame.h"
-
-
+#include "patterns.h"
+#include "font.h"
+#include "scroll.h"
 
 // 32 * 0.000004 = 0.000128 so ISR gets called every 128us
 // 32 * 0.000004 * 8 = 0.001024 = about 1khz for whole matrix (NB zero based so register one less)
 #define COMPARE_REG 31 // OCR0A when to interupt (datasheet: 14.9.4)
 #define MILLIS_TICKS 8  // number of ISR calls before a millisecond is counted (ish)
-
 #define T1 1 * MILLIS_TICKS // timeout value (mSec)
 
 
-#define SOURCE_SIZE_PATTERNS 4 // The number of items in the pattern source array.
-#include "patterns.h"
-
-#include "font.h"
 
 /********************************************************************************
 Function Prototypes
@@ -46,6 +40,7 @@ Global Variables
 uint8_t cycle_count; // keeps track of the number of times a complete multiplex loop has happened.
 uint8_t current_row; // Which row of the frame is currently being shown via the multiplexing.
 uint8_t current_frame[3][8]; // The current frame being displayed
+uint8_t source_buffer[3][8]; // The frame that is being scrolled/merged into the current one
 uint8_t current_frame_coloured[3][8][8];
 uint8_t image[3][8][8]; // A coloured image
 
@@ -60,6 +55,7 @@ uint8_t rx_args; // The argument for rx_cmd being requested by serial data.
 
 uint8_t source_array; // The array that is the source of data.
 uint8_t source_index; // The source array index that is currently being shown.
+
 
 
 volatile unsigned int time1;
@@ -171,14 +167,23 @@ main (void)
                 }
     		    frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
 
-    		} else if (source_array == 'p') {
+    		} else if (source_array == 'F') { // Scroll from the font array.
+    		    if (scroll_Empty()) {
+    		        source_index = 0; // A blank screen.
+    		    } else {
+    		        source_index = scroll_Shift();
+    		    }
+    		    //@todo scroll!!!
+
+                frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
+
+            } else if (source_array == 'p') {
     		    if (source_index >= SOURCE_SIZE_PATTERNS) {
     		        source_index = 0;
     		    }
     		    frame_SetMono_P(current_frame, patterns[source_index], patterns[source_index], patterns[source_index]);
     		    source_index++;
     		}
-    		//source_index++;
 
     	}
 
@@ -324,7 +329,7 @@ void rxProcess(void)
         // reset the command arguments
         rx_args = 0;
 
-        if (c == 'f' || c == 'p' || c == 'i' || c == 'c') {
+        if (c == 'f' || c == 'p' || c == 'i' || c == 'c' || c == 's') {
             // Commands are only one byte.
             rx_cmd = c;
             // Now get the arguments.
@@ -344,6 +349,7 @@ void rxProcess(void)
             // 'f' is the command for font,
             // 'p' is for pattern,
             // 'c' is for display character
+            // 's' is for scroll characters
             if (rx_cmd == 'f' || rx_cmd == 'p') {
                 source_array = rx_cmd;
                 source_index = rx_args;
@@ -352,6 +358,9 @@ void rxProcess(void)
             } else if (rx_cmd == 'c') {
                 source_array = 'f';
                 source_index = rx_args;
+                frame_time = 0;
+            } else if (rx_cmd == 's') {
+                source_array = 'F';
                 frame_time = 0;
             }
 
@@ -373,10 +382,16 @@ void rxProcess(void)
                     }
                     USART_Transmit(c);
                 }
-            } else if (rx_cmd == 'c') {
+            } else if (rx_cmd == 'c' || rx_cmd == 's') {
                 if (c > 0x20 && c < 0xff) {
                     rx_args = c - 32;
                     USART_Transmit(c);
+
+                    if (rx_cmd == 's') {
+                        // Add to the scroll buffer.
+                        scroll_Push(rx_args);
+                    }
+
                 }
             } else if (rx_cmd == 'i') {
                 //USART_Transmit(c);
@@ -479,3 +494,4 @@ uint8_t rxBuildImage(uint8_t image[][8][8], uint8_t c)
     // Need more to finish the build
     return 0;
 }
+

@@ -7,15 +7,21 @@ if (empty($argv[1])) {
 }
 
 if (empty($argv[2])) {
-    $tty = '/dev/ttyUSB0';
+    $scroll = false;
 } else {
-    $tty = $argv[2];
+    $scroll = true;
 }
 
 if (empty($argv[3])) {
+    $tty = '/dev/ttyUSB0';
+} else {
+    $tty = $argv[3];
+}
+
+if (empty($argv[4])) {
     $baud = '115200';
 } else {
-    $baud = $argv[3];
+    $baud = $argv[4];
 }
 
 /*
@@ -34,16 +40,27 @@ if( !$serial) {
 while(1) {
     $line = readline('>');
 
-    $len = strlen($line);
-    for ($i = 0; $i < $len; ++$i) {
-        fwrite($serial, 'c');
-        fwrite($serial, $line[$i]);
+    if ($scroll) {
+        fwrite($serial, 's');
+        fwrite($serial, $line);
         fwrite($serial, "\n");
-        echo $line[$i];
-        // Allow it to be displayed for a while.
-        // But don't delay on the last character.
-        if ($i < ($len - 1)) {
-            sleep($delay);
+        echo $line;
+
+    } else {
+        // One letter at a time
+        $len = strlen($line);
+        for ($i = 0; $i < $len; ++$i) {
+            fwrite($serial, 'c');
+            fwrite($serial, $line[$i]);
+            fwrite($serial, "\n");
+            echo $line[$i];
+            // Allow it to be displayed for a while.
+            // But don't delay on the last character.
+            if ($i < ($len - 1)) {
+                if ($delay > 0) {
+                    sleep($delay);
+                }
+            }
         }
     }
     echo "\n";

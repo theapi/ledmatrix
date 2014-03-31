@@ -8,7 +8,7 @@
 #include "frame.h"
 
 /**
- * ...
+ * Stores the data for the frames so the bytes are hex values of the brightness.
  */
 void frame_SetColoured(uint8_t frame[3][8][8], uint8_t red[8][8], uint8_t green[8][8], uint8_t blue[8][8])
 {
@@ -25,7 +25,7 @@ void frame_SetColoured(uint8_t frame[3][8][8], uint8_t red[8][8], uint8_t green[
 }
 
 /**
- * Stores the data for the frames so the bytes are hex values of the brightness.
+ * Stores the data for the frame, one byte per row.
  */
 void frame_SetMono(uint8_t frame[0][8], const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8])
 {
@@ -38,7 +38,7 @@ void frame_SetMono(uint8_t frame[0][8], const uint8_t red[8], const uint8_t gree
 }
 
 /**
- * Stores the data from PROGMEM for the frames so the bytes are hex values of the brightness.
+ * Stores the data from PROGMEM for the frame, one byte per row.
  */
 void frame_SetMono_P(uint8_t frame[0][8], const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8])
 {
