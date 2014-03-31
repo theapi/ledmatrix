@@ -383,7 +383,7 @@ void rxProcess(void)
                     USART_Transmit(c);
                 }
             } else if (rx_cmd == 'c' || rx_cmd == 's') {
-                if (c > 0x20 && c < 0xff) {
+                if (c > 0x19 && c < 0xff) {
                     rx_args = c - 32;
                     USART_Transmit(c);
 
