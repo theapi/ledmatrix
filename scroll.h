@@ -10,11 +10,11 @@
 
 #include <avr/io.h>
 
-#define SC_BUFFER_LEN 32 // Number of characters to remember for scrolling
+#define SC_BUFFER_LEN 64 // Number of characters to remember for scrolling
 
 void scroll_Push(uint8_t c);
 uint8_t scroll_Shift();
 uint8_t scroll_Empty();
-void scroll_LeftMono(uint8_t current[0][8], uint8_t next[0][8], uint8_t pixels);
+void scroll_LeftMono(uint8_t current[0][8], uint8_t next[0][8]);
 
 #endif /* SCROLL_H_ */

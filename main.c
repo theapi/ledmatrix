@@ -16,7 +16,7 @@
 // 32 * 0.000004 * 8 = 0.001024 = about 1khz for whole matrix (NB zero based so register one less)
 #define COMPARE_REG 31 // OCR0A when to interupt (datasheet: 14.9.4)
 #define MILLIS_TICKS 8  // number of ISR calls before a millisecond is counted (ish)
-#define T1 500 * MILLIS_TICKS // timeout value (mSec)
+#define T1 125 * MILLIS_TICKS // timeout value (mSec)
 
 
 
@@ -156,30 +156,18 @@ main (void)
 
     		if (source_array == 'F') {
     		    // Scroll
-
+    		    // @todo kerning.
     		    if (scrolled == 0) {
     		        if (scroll_Empty()) {
                         source_index = 0; // A blank screen.
                     } else {
                         source_index = scroll_Shift();
                     }
-
-                    frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
-
-                    /*
-    		        if (scroll_Empty()) {
-                        source_index = 0; // A blank screen.
-                    } else {
-                        source_index = scroll_Shift();
-                    }
-                    */
-                    source_index = 0; // A blank screen.
     		        frame_SetMono_P(source_buffer, font[source_index], font[source_index], font[source_index]);
-
     		    }
 
     		    //if (source_index) {
-                    scroll_LeftMono(current_frame, source_buffer, 1);
+                    scroll_LeftMono(current_frame, source_buffer);
                     scrolled++;
                     if (scrolled > 7) {
                         scrolled = 0;
@@ -203,25 +191,7 @@ main (void)
                 }
     		    frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
 
-    		} else if (source_array == 'F') { // Scroll from the font array.
-
-
-
-    		    /*
-    		    if (scroll_Empty()) {
-    		        source_index = 0; // A blank screen.
-    		    } else {
-    		        source_index = scroll_Shift();
-    		    }
-
-    		    frame_SetMono(source_buffer, font[source_index], font[source_index], font[source_index]);
-    		    */
-
-    		    //@todo scroll!!!
-
-                //frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
-
-            } else if (source_array == 'p') {
+    		} else if (source_array == 'p') {
     		    if (source_index >= SOURCE_SIZE_PATTERNS) {
     		        source_index = 0;
     		    }
@@ -406,10 +376,8 @@ void rxProcess(void)
             } else if (rx_cmd == 's') {
                 source_array = 'F';
                 frame_time = 0;
-
-                // Show the first character in the buffer.
-                //source_index = scroll_Shift();
-                //frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
+                // Set a blank screen to scroll into.
+                frame_SetMono_P(current_frame, font[0], font[0], font[0]);
 
             }
 
