@@ -15,5 +15,6 @@
 void scroll_Push(uint8_t c);
 uint8_t scroll_Shift();
 uint8_t scroll_Empty();
+void scroll_LeftMono(uint8_t current[0][8], uint8_t next[0][8], uint8_t pixels);
 
 #endif /* SCROLL_H_ */

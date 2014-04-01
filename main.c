@@ -16,7 +16,7 @@
 // 32 * 0.000004 * 8 = 0.001024 = about 1khz for whole matrix (NB zero based so register one less)
 #define COMPARE_REG 31 // OCR0A when to interupt (datasheet: 14.9.4)
 #define MILLIS_TICKS 8  // number of ISR calls before a millisecond is counted (ish)
-#define T1 1 * MILLIS_TICKS // timeout value (mSec)
+#define T1 500 * MILLIS_TICKS // timeout value (mSec)
 
 
 
@@ -41,6 +41,7 @@ uint8_t cycle_count; // keeps track of the number of times a complete multiplex 
 uint8_t current_row; // Which row of the frame is currently being shown via the multiplexing.
 uint8_t current_frame[3][8]; // The current frame being displayed
 uint8_t source_buffer[3][8]; // The frame that is being scrolled/merged into the current one
+uint8_t scrolled = 0; // How many pixels scrolled
 uint8_t current_frame_coloured[3][8][8];
 uint8_t image[3][8][8]; // A coloured image
 
@@ -153,6 +154,41 @@ main (void)
     		// reset the timer
     		time1 = T1;
 
+    		if (source_array == 'F') {
+    		    // Scroll
+
+    		    if (scrolled == 0) {
+    		        if (scroll_Empty()) {
+                        source_index = 0; // A blank screen.
+                    } else {
+                        source_index = scroll_Shift();
+                    }
+
+                    frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
+
+                    /*
+    		        if (scroll_Empty()) {
+                        source_index = 0; // A blank screen.
+                    } else {
+                        source_index = scroll_Shift();
+                    }
+                    */
+                    source_index = 0; // A blank screen.
+    		        frame_SetMono_P(source_buffer, font[source_index], font[source_index], font[source_index]);
+
+    		    }
+
+    		    //if (source_index) {
+                    scroll_LeftMono(current_frame, source_buffer, 1);
+                    scrolled++;
+                    if (scrolled > 7) {
+                        scrolled = 0;
+                    }
+    		    //}
+
+
+    		}
+
     	}
 
     	// check for countdown reached 0
@@ -168,14 +204,22 @@ main (void)
     		    frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
 
     		} else if (source_array == 'F') { // Scroll from the font array.
+
+
+
+    		    /*
     		    if (scroll_Empty()) {
     		        source_index = 0; // A blank screen.
     		    } else {
     		        source_index = scroll_Shift();
     		    }
+
+    		    frame_SetMono(source_buffer, font[source_index], font[source_index], font[source_index]);
+    		    */
+
     		    //@todo scroll!!!
 
-                frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
+                //frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
 
             } else if (source_array == 'p') {
     		    if (source_index >= SOURCE_SIZE_PATTERNS) {
@@ -362,6 +406,11 @@ void rxProcess(void)
             } else if (rx_cmd == 's') {
                 source_array = 'F';
                 frame_time = 0;
+
+                // Show the first character in the buffer.
+                //source_index = scroll_Shift();
+                //frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
+
             }
 
             rx_state = RX_COMMAND;

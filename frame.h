@@ -19,8 +19,8 @@
 
 
 void frame_SetColoured(uint8_t frame[3][8][8], uint8_t red[8][8], uint8_t green[8][8], uint8_t blue[8][8]);
-void frame_SetMono(uint8_t frame[0][8], const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8]);
-void frame_SetMono_P(uint8_t frame[0][8], const uint8_t red[8], const uint8_t green[8], const uint8_t blue[8]);
+void frame_SetMono(uint8_t frame[0][8], uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
+void frame_SetMono_P(uint8_t frame[0][8], uint8_t red[8], uint8_t green[8], uint8_t blue[8]);
 void frame_Rotate(uint8_t frame[0][8], int degrees);
 void frame_FlipH(uint8_t frame[0][8]);
 void frame_FlipV(uint8_t frame[0][8]);
