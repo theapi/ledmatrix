@@ -17,12 +17,13 @@ void frame_Colourise_P(uint8_t frame[3][8][8], uint8_t mono[8], uint8_t colours[
     uint8_t col;
 
     for (row = 0; row < 8; row++) {
+        uint8_t bit = 7;
         for (col = 0; col < 8; col++) {
 
-            uint8_t byte = ~pgm_read_byte(mono + row);
+            uint8_t byte = pgm_read_byte(mono + row);
 
             // Check whether the col bit is set in the mono frame.
-            if (byte & (1 << col)) {
+            if (byte & (1 << bit)) {
                 // Use the equivelent colour for the pixel.
                 frame[0][row][col] = colours[0][row][col];
                 frame[1][row][col] = colours[1][row][col];
@@ -34,6 +35,7 @@ void frame_Colourise_P(uint8_t frame[3][8][8], uint8_t mono[8], uint8_t colours[
                 frame[2][row][col] = 0x00;
             }
 
+            --bit;
         }
     }
 }

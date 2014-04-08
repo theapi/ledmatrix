@@ -67,7 +67,7 @@ volatile uint8_t data_sent; // whether the data has been sent and just needs to 
 uint8_t example_colour[3][8][8] =
 {
     { // red
-        {2, 2, 2, 2, 2, 2, 2, 2 },
+        {16, 2, 2, 2, 2, 2, 2, 2 },
         {2, 2, 2, 2, 2, 2, 2, 2 },
         {2, 2, 2, 2, 2, 2, 2, 2 },
         {2, 2, 2, 2, 2, 2, 2, 2 },
@@ -77,7 +77,7 @@ uint8_t example_colour[3][8][8] =
         {2, 2, 2, 2, 2, 2, 2, 2 },
     },
     { // green
-        {5, 5, 5, 5, 5, 5, 5, 5 },
+        {0, 5, 5, 5, 5, 5, 5, 5 },
         {5, 5, 5, 5, 5, 5, 5, 5 },
         {5, 5, 5, 5, 5, 5, 5, 5 },
         {5, 5, 5, 5, 5, 5, 5, 5 },
@@ -87,7 +87,7 @@ uint8_t example_colour[3][8][8] =
         {5, 5, 5, 5, 5, 5, 5, 5 },
     },
     { // blue
-        {15, 15, 15, 15, 15, 15, 15, 15 },
+        {0, 15, 15, 15, 15, 15, 15, 15 },
         {15, 15, 15, 15, 15, 15, 15, 15 },
         {15, 15, 15, 15, 15, 15, 15, 15 },
         {15, 15, 15, 15, 15, 15, 15, 15 },
@@ -222,23 +222,20 @@ main (void)
     		    if (source_index >= SOURCE_SIZE_FONT) {
                     source_index = 0;
                 }
-    		    frame_SetMono_P(current_frame, font[source_index], font[source_index], font[source_index]);
-
+    		    frame_Colourise_P(current_frame_coloured, font[source_index], example_colour);
     		} else if (source_array == 'p') {
     		    if (source_index >= SOURCE_SIZE_PATTERNS) {
     		        source_index = 0;
     		    }
-
     		    frame_Colourise_P(current_frame_coloured, patterns[source_index], example_colour);
-
-    		    source_index++;
+    		    //source_index++;
     		}
 
     	}
 
     	if (!data_sent) {
 
-    	    if (source_array == 'i' || source_array == 'p') {
+    	    if (source_array == 'i' || source_array == 'p' || source_array == 'f') {
 
                 // current_frame_coloured
                 uint8_t col;
