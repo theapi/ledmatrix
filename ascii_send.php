@@ -1,27 +1,29 @@
 <?php
 
 if (empty($argv[1])) {
-    $delay = 1;
+    $scroll = true;
 } else {
-    $delay = $argv[1];
+    // Want to send single characters, no scrolling.
+    $scroll = false;
 }
 
 if (empty($argv[2])) {
-    $scroll = false;
+    $tty = '/dev/ttyUSB0';
 } else {
-    $scroll = true;
+    $tty = $argv[2];
 }
 
 if (empty($argv[3])) {
-    $tty = '/dev/ttyUSB0';
-} else {
-    $tty = $argv[3];
-}
-
-if (empty($argv[4])) {
     $baud = '115200';
 } else {
-    $baud = $argv[4];
+    $baud = $argv[3];
+}
+
+// Delay is only for sensing single characters.
+if (empty($argv[4])) {
+    $delay = 1;
+} else {
+    $delay = $argv[4];
 }
 
 /*

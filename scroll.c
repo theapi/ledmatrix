@@ -12,6 +12,35 @@ unsigned char sc_buffer[SC_BUFFER_LEN]; // Scroll character buffer
 unsigned char sc_head;
 unsigned char sc_tail;
 
+void scroll_Left(uint8_t current[3][8][8], uint8_t next[3][8][8])
+{
+    uint8_t row;
+    uint8_t col;
+    uint8_t src;
+    uint8_t i;
+
+    for (row = 0; row < 8; row++) {
+        // Shift the frames one pixel left.
+        for (col = 0; col < 8; col++) {
+            src = col + 1;
+            for (row = 0; row < 8; row++) {
+                if (col == 7) {
+                    // Do each colour.
+                    for (i = 0; i <= 2; ++i) {
+                        current[i][row][col] = next[i][row][0]; // First pixel of the next frame
+                        next[i][row][col] = 0x00; // A blank pixel
+                    }
+                } else {
+                    for (i = 0; i <= 2; ++i) {
+                        current[i][row][col] = current[i][row][src];
+                        next[i][row][col] = next[i][row][src];
+                    }
+                }
+            }
+        }
+    }
+}
+
 void scroll_LeftMono(uint8_t current[0][8], uint8_t next[0][8])
 {
       uint8_t i;

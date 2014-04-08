@@ -40,7 +40,7 @@ Global Variables
 uint8_t cycle_count; // keeps track of the number of times a complete multiplex loop has happened.
 uint8_t current_row; // Which row of the frame is currently being shown via the multiplexing.
 uint8_t current_frame[3][8]; // The current frame being displayed
-uint8_t source_buffer[3][8]; // The frame that is being scrolled/merged into the current one
+uint8_t source_buffer[3][8][8]; // The frame that is being scrolled/merged into the current one
 uint8_t scrolled = 0; // How many pixels scrolled
 uint8_t current_frame_coloured[3][8][8];
 uint8_t image[3][8][8]; // A coloured image
@@ -157,25 +157,10 @@ main (void)
 
 	data_sent = 0;
 
+	frame_Colourise_P(current_frame_coloured, patterns[0], example_colour);
+
 	// crank up the ISRs
-	sei();
-
-	uint8_t frame[8] = {
-       0b10000000,
-       0b00000000,
-       0b00000000,
-       0b00000000,
-       0b00000000,
-       0b00000000,
-       0b00000000,
-       0b00000000,
-    };
-	frame_SetMono(current_frame, frame, frame, frame);
-
-	//buildImageFromString(image, imgStr);
-	//frame_SetColoured(current_frame_coloured, image[0], image[1], image[2]);
-	//source_array = 'p';
-	//frame_SetMono_P(current_frame, patterns[0], patterns[0], patterns[0]);
+    sei();
 
 	// main loop
     while(1) {
@@ -196,17 +181,16 @@ main (void)
                     } else {
                         source_index = scroll_Shift();
                     }
-    		        frame_SetMono_P(source_buffer, font[source_index], font[source_index], font[source_index]);
+    		        //frame_SetMono_P(source_buffer, font[source_index], font[source_index], font[source_index]);
+    		        frame_Colourise_P(source_buffer, font[source_index], example_colour);
     		    }
 
-    		    //if (source_index) {
-                    scroll_LeftMono(current_frame, source_buffer);
-                    scrolled++;
-                    if (scrolled > 7) {
-                        scrolled = 0;
-                    }
-    		    //}
-
+                //scroll_LeftMono(current_frame, source_buffer);
+    		    scroll_Left(current_frame_coloured, source_buffer);
+                scrolled++;
+                if (scrolled > 7) {
+                    scrolled = 0;
+                }
 
     		}
 
@@ -216,7 +200,6 @@ main (void)
     	if (frame_time == 0) {
     		// reset the frame timer
     		frame_time = current_frame_duration;
-
 
     		if (source_array == 'f') {
     		    if (source_index >= SOURCE_SIZE_FONT) {
@@ -235,39 +218,29 @@ main (void)
 
     	if (!data_sent) {
 
-    	    if (source_array == 'i' || source_array == 'p' || source_array == 'f') {
-
-                // current_frame_coloured
-                uint8_t col;
-                uint8_t bit = 7;
-                uint8_t r = 0;
-                uint8_t g = 0;
-                uint8_t b = 0;
-                for (col=0; col<8; col++) {
-                    if (current_frame_coloured[0][current_row][col] <= cycle_count) {
-                        r |= (1 << bit);
-                    }
-                    if (current_frame_coloured[1][current_row][col] <= cycle_count) {
-                        g |= (1 << bit);
-                    }
-                    if (current_frame_coloured[2][current_row][col] <= cycle_count) {
-                        b |= (1 << bit);
-                    }
-                    --bit;
+            // Calculate the bits to send.
+    	    // If the colour brightness number is higher than the cycle count,
+    	    // the bit will be on.
+    	    // So software PWM.
+            uint8_t col;
+            uint8_t bit = 7;
+            uint8_t r = 0;
+            uint8_t g = 0;
+            uint8_t b = 0;
+            for (col=0; col<8; col++) {
+                if (current_frame_coloured[0][current_row][col] <= cycle_count) {
+                    r |= (1 << bit);
                 }
+                if (current_frame_coloured[1][current_row][col] <= cycle_count) {
+                    g |= (1 << bit);
+                }
+                if (current_frame_coloured[2][current_row][col] <= cycle_count) {
+                    b |= (1 << bit);
+                }
+                --bit;
+            }
 
-                matrix_sendLine(r,g,b);
-
-    	    } else { // temporary kludge to show mono frames
-
-                // Send the next line ready to be latched in the ISR
-                matrix_sendLine(
-                    current_frame[0][current_row], // Red
-                    current_frame[1][current_row], // Green
-                    current_frame[2][current_row]  // Blue
-                );
-
-    	    }
+            matrix_sendLine(r,g,b);
 
     	    // Prepare for the next row.
     	    ++current_row;
@@ -409,8 +382,8 @@ void rxProcess(void)
                 source_array = 'F';
                 frame_time = 0;
                 // Set a blank screen to scroll into.
-                frame_SetMono_P(current_frame, font[0], font[0], font[0]);
-
+                //frame_SetMono_P(current_frame, font[0], font[0], font[0]);
+                frame_Colourise_P(current_frame_coloured, font[0], example_colour);
             }
 
             rx_state = RX_COMMAND;
