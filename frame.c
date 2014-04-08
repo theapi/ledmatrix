@@ -8,7 +8,38 @@
 #include "frame.h"
 
 /**
- * Stores the data for the frames so the bytes are hex values of the brightness.
+ * Adds colour to a PROGMEM mono frame (e.g. font).
+ * A mono frame simply has bits to say an led is on, a colour frame has uint8_t values instead of bits.
+ */
+void frame_Colourise_P(uint8_t frame[3][8][8], uint8_t mono[8], uint8_t colours[3][8][8])
+{
+    uint8_t row;
+    uint8_t col;
+
+    for (row = 0; row < 8; row++) {
+        for (col = 0; col < 8; col++) {
+
+            uint8_t byte = ~pgm_read_byte(mono + row);
+
+            // Check whether the col bit is set in the mono frame.
+            if (byte & (1 << col)) {
+                // Use the equivelent colour for the pixel.
+                frame[0][row][col] = colours[0][row][col];
+                frame[1][row][col] = colours[1][row][col];
+                frame[2][row][col] = colours[2][row][col];
+            } else {
+                // Pixel off
+                frame[0][row][col] = 0x00;
+                frame[1][row][col] = 0x00;
+                frame[2][row][col] = 0x00;
+            }
+
+        }
+    }
+}
+
+/**
+ * Stores the data for the frames so the bytes are uint8_t values of the brightness.
  */
 void frame_SetColoured(uint8_t frame[3][8][8], uint8_t red[8][8], uint8_t green[8][8], uint8_t blue[8][8])
 {

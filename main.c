@@ -63,7 +63,40 @@ volatile unsigned int time1;
 volatile unsigned int frame_time;
 volatile uint8_t data_sent; // whether the data has been sent and just needs to be latched.
 
-
+// Temporary colour for mono frames, which act as a mask.
+uint8_t example_colour[3][8][8] =
+{
+    { // red
+        {2, 2, 2, 2, 2, 2, 2, 2 },
+        {2, 2, 2, 2, 2, 2, 2, 2 },
+        {2, 2, 2, 2, 2, 2, 2, 2 },
+        {2, 2, 2, 2, 2, 2, 2, 2 },
+        {2, 2, 2, 2, 2, 2, 2, 2 },
+        {2, 2, 2, 2, 2, 2, 2, 2 },
+        {2, 2, 2, 2, 2, 2, 2, 2 },
+        {2, 2, 2, 2, 2, 2, 2, 2 },
+    },
+    { // green
+        {5, 5, 5, 5, 5, 5, 5, 5 },
+        {5, 5, 5, 5, 5, 5, 5, 5 },
+        {5, 5, 5, 5, 5, 5, 5, 5 },
+        {5, 5, 5, 5, 5, 5, 5, 5 },
+        {5, 5, 5, 5, 5, 5, 5, 5 },
+        {5, 5, 5, 5, 5, 5, 5, 5 },
+        {5, 5, 5, 5, 5, 5, 5, 5 },
+        {5, 5, 5, 5, 5, 5, 5, 5 },
+    },
+    { // blue
+        {15, 15, 15, 15, 15, 15, 15, 15 },
+        {15, 15, 15, 15, 15, 15, 15, 15 },
+        {15, 15, 15, 15, 15, 15, 15, 15 },
+        {15, 15, 15, 15, 15, 15, 15, 15 },
+        {15, 15, 15, 15, 15, 15, 15, 15 },
+        {15, 15, 15, 15, 15, 15, 15, 15 },
+        {15, 15, 15, 15, 15, 15, 15, 15 },
+        {15, 15, 15, 15, 15, 15, 15, 15 },
+    }
+};
 
 /********************************************************************************
 Interupt Routines
@@ -195,7 +228,9 @@ main (void)
     		    if (source_index >= SOURCE_SIZE_PATTERNS) {
     		        source_index = 0;
     		    }
-    		    frame_SetMono_P(current_frame, patterns[source_index], patterns[source_index], patterns[source_index]);
+
+    		    frame_Colourise_P(current_frame_coloured, patterns[source_index], example_colour);
+
     		    source_index++;
     		}
 
@@ -203,7 +238,7 @@ main (void)
 
     	if (!data_sent) {
 
-    	    if (source_array == 'i') {
+    	    if (source_array == 'i' || source_array == 'p') {
 
                 // current_frame_coloured
                 uint8_t col;
