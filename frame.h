@@ -17,6 +17,8 @@
 #define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
 #define bitWrite(value, bit, bitvalue) (bitvalue ? bitSet(value, bit) : bitClear(value, bit))
 
+void frame_SetPixel(uint8_t frame[3][8][8], uint8_t row, uint8_t col, uint8_t r, uint8_t g, uint8_t b);
+void frame_ColourFill(uint8_t frame[3][8][8], uint8_t r, uint8_t g, uint8_t b);
 void frame_Colourise_P(uint8_t frame[3][8][8], uint8_t mono[8], uint8_t colours[3][8][8]);
 void frame_SetColoured(uint8_t frame[3][8][8], uint8_t red[8][8], uint8_t green[8][8], uint8_t blue[8][8]);
 void frame_SetMono(uint8_t frame[0][8], uint8_t red[8], uint8_t green[8], uint8_t blue[8]);

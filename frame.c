@@ -8,6 +8,30 @@
 #include "frame.h"
 
 /**
+ * Sets a coloured pixel in the given frame.
+ */
+void frame_SetPixel(uint8_t frame[3][8][8], uint8_t row, uint8_t col, uint8_t r, uint8_t g, uint8_t b)
+{
+    frame[0][row][col] = r;
+    frame[1][row][col] = g;
+    frame[2][row][col] = b;
+}
+
+void frame_ColourFill(uint8_t frame[3][8][8], uint8_t r, uint8_t g, uint8_t b)
+{
+    uint8_t row;
+    uint8_t col;
+
+    for (row = 0; row < 8; row++) {
+        for (col = 0; col < 8; col++) {
+            frame[0][row][col] = r;
+            frame[1][row][col] = g;
+            frame[2][row][col] = b;
+        }
+    }
+}
+
+/**
  * Adds colour to a PROGMEM mono frame (e.g. font).
  * A mono frame simply has bits to say an led is on, a colour frame has uint8_t values instead of bits.
  */
