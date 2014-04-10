@@ -17,5 +17,7 @@ uint8_t anim_CurrentIndex();
 unsigned long anim_CurrentDuration();
 void anim_Next();
 uint8_t anim_Complete();
+void anim_SetBeggining(uint8_t begin);
+void anim_SetLength(uint8_t length);
 
 #endif /* ANIM_H_ */
