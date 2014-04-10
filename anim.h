@@ -8,6 +8,14 @@
 #ifndef ANIM_H_
 #define ANIM_H_
 
-#define ANIM_SOURCE_LEN 64 // The max number of key frames in the animation
+#include <avr/io.h>
+
+#define ANIM_SOURCE_LEN 8 // The max number of key frames in the animation
+
+void anim_Add(uint8_t source_index, unsigned long duration);
+uint8_t anim_CurrentIndex();
+unsigned long anim_CurrentDuration();
+void anim_Next();
+uint8_t anim_Complete();
 
 #endif /* ANIM_H_ */

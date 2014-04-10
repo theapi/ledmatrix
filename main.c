@@ -11,6 +11,7 @@
 #include "patterns.h"
 #include "font.h"
 #include "scroll.h"
+#include "anim.h"
 
 // 32 * 0.000004 = 0.000128 so ISR gets called every 128us
 // 32 * 0.000004 * 8 = 0.001024 = about 1khz for whole matrix (NB zero based so register one less)
@@ -159,6 +160,16 @@ main (void)
 
 	frame_Colourise_P(current_frame_coloured, patterns[0], example_colour);
 
+
+	anim_Add(1, 250 * MILLIS_TICKS);
+	anim_Add(2, 250 * MILLIS_TICKS);
+	anim_Add(1, 200 * MILLIS_TICKS);
+    anim_Add(3, 900 * MILLIS_TICKS);
+    anim_Add(1, 250 * MILLIS_TICKS);
+    anim_Add(2, 150 * MILLIS_TICKS);
+    anim_Add(4, 900 * MILLIS_TICKS);
+    anim_Add(3, 1000 * MILLIS_TICKS);
+
 	// crank up the ISRs
     sei();
 
@@ -196,10 +207,11 @@ main (void)
 
     	}
 
+
+
+
     	// check for countdown reached 0
     	if (frame_time == 0) {
-    		// reset the frame timer
-    		frame_time = current_frame_duration;
 
     		if (source_array == 'f') {
     		    if (source_index >= SOURCE_SIZE_FONT) {
@@ -212,8 +224,16 @@ main (void)
     		    }
     		    frame_Colourise_P(current_frame_coloured, patterns[source_index], example_colour);
     		    //source_index++;
+    		} else {
+    		    // Play the animation.
+    		    anim_Next();
+    		    source_index = anim_CurrentIndex();
+    		    current_frame_duration = anim_CurrentDuration();
+    		    frame_Colourise_P(current_frame_coloured, patterns[source_index], example_colour);
     		}
 
+    		// reset the frame timer
+            frame_time = current_frame_duration;
     	}
 
     	if (!data_sent) {
