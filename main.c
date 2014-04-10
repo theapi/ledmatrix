@@ -52,7 +52,7 @@ enum rx_states {RX_COMMAND, RX_ARGS};
 enum rx_states rx_state = RX_COMMAND;
 uint8_t rx_cmd;  // The command being requested by serial data.
 uint8_t rx_args; // The argument for rx_cmd being requested by serial data.
-
+uint8_t rx_verbose = 1; // Whether to send responses back when a command is sent.
 
 uint8_t source_array; // The array that is the source of data.
 uint8_t source_index; // The source array index that is currently being shown.
@@ -338,10 +338,15 @@ void rxProcess(void)
 
     uint8_t c = USART_ReadByte();
 
-    //USART_Transmit(c);
+    if (c == 'V') {
+        // Send no responses.
+        rx_verbose = 0;
+    }
 
     if (c == '\n') {
-        USART_Transmit(c);
+        if (rx_verbose) {
+            USART_Transmit(c);
+        }
     }
 
     if (rx_state == RX_COMMAND) {
@@ -354,9 +359,11 @@ void rxProcess(void)
             // Now get the arguments.
             rx_state = RX_ARGS;
 
-            USART_Transmit('*');
-            USART_Transmit(rx_cmd);
-            USART_Transmit('-');
+            if (rx_verbose) {
+                USART_Transmit('*');
+                USART_Transmit(rx_cmd);
+                USART_Transmit('-');
+            }
         }
     } else {
         // rx_state == RX_ARGS
@@ -402,12 +409,16 @@ void rxProcess(void)
                     } else {
                         rx_args = c - 0x30;
                     }
-                    USART_Transmit(c);
+                    if (rx_verbose) {
+                        USART_Transmit(c);
+                    }
                 }
             } else if (rx_cmd == 'c' || rx_cmd == 's') {
                 if (c > 0x19 && c < 0xff) {
                     rx_args = c - 32;
-                    USART_Transmit(c);
+                    if (rx_verbose) {
+                        USART_Transmit(c);
+                    }
 
                     if (rx_cmd == 's') {
                         // Add to the scroll buffer.
@@ -419,7 +430,9 @@ void rxProcess(void)
                 //USART_Transmit(c);
                 if (rxBuildImage(image, c)) {
                     // Acknowledge the success.
-                    USART_Transmit('I');
+                    if (rx_verbose) {
+                        USART_Transmit('I');
+                    }
                     source_array = 'i';
                     frame_SetColoured(current_frame_coloured, image[0], image[1], image[2]);
                     // Make it display now.
