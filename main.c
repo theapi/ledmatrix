@@ -338,11 +338,6 @@ void rxProcess(void)
 
     uint8_t c = USART_ReadByte();
 
-    if (c == 'V') {
-        // Send no responses.
-        rx_verbose = 0;
-    }
-
     if (c == '\n') {
         if (rx_verbose) {
             USART_Transmit(c);
@@ -353,7 +348,13 @@ void rxProcess(void)
         // reset the command arguments
         rx_args = 0;
 
-        if (c == 'f' || c == 'p' || c == 'i' || c == 'c' || c == 's') {
+        if (c == 'V') {
+            // Send no responses.
+            rx_verbose = 0;
+        } else if (c == 'v') {
+            // Send responses (default value).
+            rx_verbose = 1;
+        } else if (c == 'f' || c == 'p' || c == 'i' || c == 'c' || c == 's') {
             // Commands are only one byte.
             rx_cmd = c;
             // Now get the arguments.
