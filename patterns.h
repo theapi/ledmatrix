@@ -8,7 +8,7 @@
 #ifndef PATTERNS_H_
 #define PATTERNS_H_
 
-#define SOURCE_SIZE_PATTERNS 5 // The number of items in the pattern source array.
+#define SOURCE_SIZE_PATTERNS 11 // The num0ber of items in the pattern source array.
 
 uint8_t patterns[SOURCE_SIZE_PATTERNS][8] PROGMEM = {
     {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, // all on
@@ -16,6 +16,62 @@ uint8_t patterns[SOURCE_SIZE_PATTERNS][8] PROGMEM = {
     {0x00, 0x06, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // ;)
     {0x00, 0x00, 0x66, 0x00, 0x42, 0x42, 0x3C, 0x00}, // |)
     {0x00, 0x66, 0x66, 0x00, 0x3C, 0x7E, 0x3C, 0x00}, // :O
+
+    // https://learn.adafruit.com/3d-printed-led-animation-bmo/led-animations
+   {0b11111111,
+    0b10011001,
+    0b10011001,
+    0b11111111,
+    0b10000001,
+    0b11000011,
+    0b11100111,
+    0b11111111},
+
+   {0b11111111,
+    0b10011001,
+    0b10011001,
+    0b11111111,
+    0b10111101,
+    0b10111101,
+    0b11000011,
+    0b11111111},
+
+   {0b11111111,
+    0b10011001,
+    0b10011001,
+    0b11111111,
+    0b11111111,
+    0b11111111,
+    0b10000001,
+    0b11111111},
+
+   {0b11111111,
+    0b10011001,
+    0b10011001,
+    0b11111111,
+    0b11100111,
+    0b11011011,
+    0b11100111,
+    0b11111111},
+
+   {0b11111111,
+    0b10111101,
+    0b00011000,
+    0b10111101,
+    0b11100111,
+    0b11011011,
+    0b11100111,
+    0b11111111},
+
+   {0b11111111,
+    0b11111111,
+    0b00011000,
+    0b11111111,
+    0b11100111,
+    0b11011011,
+    0b11100111,
+    0b11111111},
+
 };
 
 /*

@@ -160,7 +160,7 @@ main (void)
 
 	frame_Colourise_P(current_frame_coloured, patterns[0], example_colour);
 
-
+/*
 	anim_Add(1, 250 * MILLIS_TICKS);
 	//anim_SetBeggining(anim_CurrentIndex());
 	anim_Add(2, 250 * MILLIS_TICKS);
@@ -171,6 +171,16 @@ main (void)
     anim_Add(4, 900 * MILLIS_TICKS);
     anim_Add(3, 1000 * MILLIS_TICKS);
     //anim_SetLength(8);
+*/
+	anim_Add(5, 250 * MILLIS_TICKS);
+	anim_Add(6, 250 * MILLIS_TICKS);
+	anim_Add(5, 250 * MILLIS_TICKS);
+	anim_Add(6, 250 * MILLIS_TICKS);
+	anim_Add(7, 250 * MILLIS_TICKS);
+	anim_Add(8, 250 * MILLIS_TICKS);
+	anim_Add(9, 250 * MILLIS_TICKS);
+	anim_Add(10, 250 * MILLIS_TICKS);
+	anim_Add(9, 250 * MILLIS_TICKS);
 
 	// crank up the ISRs
     sei();
