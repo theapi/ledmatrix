@@ -10,7 +10,7 @@
 
 #include <avr/io.h>
 
-#define ANIM_SOURCE_LEN 9 // The max number of key frames in the animation
+#define ANIM_SOURCE_LEN 32 // The max number of key frames in the animation
 
 void anim_Add(uint8_t source_index, unsigned long duration);
 uint8_t anim_CurrentIndex();

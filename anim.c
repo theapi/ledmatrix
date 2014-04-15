@@ -39,7 +39,7 @@ void anim_SetLength(uint8_t length)
 
 void anim_SetBeginning()
 {
-    anim_begin = anim_head;
+    anim_begin = anim_tail;
 }
 
 /**
@@ -69,24 +69,10 @@ void anim_Next()
     }
 
     anim_current++;
-    if (anim_current > anim_length) {
-        anim_current = 0;
-        anim_tail = anim_begin;
-    }
-
-    /*
     if (anim_current >= anim_length) {
         anim_current = 0;
         anim_tail = anim_begin;
-    } else {
-        anim_current++;
-        // Increase the processed index
-        anim_tail++;
-        if (anim_tail >= ANIM_SOURCE_LEN) {
-            anim_tail = 0;
-        }
     }
-    */
 }
 
 /**
