@@ -171,7 +171,7 @@ main (void)
     anim_Add(3, 1000 * MILLIS_TICKS);
 */
 
-	anim_SetBeggining();
+	anim_SetBeginning();
 	anim_Add(5, 250 * MILLIS_TICKS);
 	anim_Add(6, 250 * MILLIS_TICKS);
 	anim_Add(5, 250 * MILLIS_TICKS);
