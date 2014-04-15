@@ -162,7 +162,6 @@ main (void)
 
 /*
 	anim_Add(1, 250 * MILLIS_TICKS);
-	//anim_SetBeggining(anim_CurrentIndex());
 	anim_Add(2, 250 * MILLIS_TICKS);
 	anim_Add(1, 200 * MILLIS_TICKS);
     anim_Add(3, 900 * MILLIS_TICKS);
@@ -170,8 +169,9 @@ main (void)
     anim_Add(2, 150 * MILLIS_TICKS);
     anim_Add(4, 900 * MILLIS_TICKS);
     anim_Add(3, 1000 * MILLIS_TICKS);
-    //anim_SetLength(8);
 */
+
+	anim_SetBeggining();
 	anim_Add(5, 250 * MILLIS_TICKS);
 	anim_Add(6, 250 * MILLIS_TICKS);
 	anim_Add(5, 250 * MILLIS_TICKS);
@@ -181,6 +181,7 @@ main (void)
 	anim_Add(9, 250 * MILLIS_TICKS);
 	anim_Add(10, 250 * MILLIS_TICKS);
 	anim_Add(9, 250 * MILLIS_TICKS);
+	anim_SetLength(9);
 
 	// crank up the ISRs
     sei();
